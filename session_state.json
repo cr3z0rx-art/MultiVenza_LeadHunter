@@ -1,76 +1,96 @@
 {
-  "_note": "Archivo de estado de sesión — actualizado al final de cada tarea. Leer al iniciar para retomar contexto.",
+  "_note": "Estado de sesión — leer al iniciar para retomar sin explicaciones.",
   "lastUpdated": "2026-04-14",
   "projectVersion": "1.0.0",
+
   "pipeline": {
     "status": "operacional",
-    "lastRun": "2026-04-14T13:48:57Z",
+    "lastRun": "2026-04-14T14:47:13Z",
     "leadsQualified": 41,
+    "diamondLeads": 11,
     "partnerSharePipeline": 5221833,
     "outputFiles": [
       "output/leads_florida_wc_roofing_2026-04-14.csv",
       "output/leads_florida_wc_cgc_2026-04-14.csv",
       "output/leads_florida_wc_homeBuilders_2026-04-14.csv",
       "output/leads_florida_wc_all_2026-04-14.json",
+      "output/LEADS_DIAMANTE_CON_TELEFONO_2026-04-14.csv",
       "output/REPORTE_PARTNER_FL_WEST.md"
     ]
   },
+
+  "srcFiles": {
+    "src/arcgis_extractor.js": "Extractor ArcGIS REST — Hillsborough real + Sarasota demo",
+    "src/processor.js": "Pipeline completo: filtros → score → TPV/NetProfit30/PartnerShare35 → Urgency Skill → CSV/JSON",
+    "src/enricher.js": "Outscraper Google Maps → teléfono; mock 941-xxx-xxxx para PREMIUM cities; clasificación DIAMANTE; genera LEADS_DIAMANTE_CON_TELEFONO.csv",
+    "src/utils/rules.js": "isNoGC, applyRoofAgeRule, detectCategory, evaluateUrgency (Urgency Skill)",
+    "src/utils/zillow_comparator.js": "Compara TPV vs precio mediano de mercado; marca SUBESTIMADO si TPV < 60% mediana",
+    "src/crm_auditor.js": "Reconciliación CRM (HubSpot / GoHighLevel / Generic REST)"
+  },
+
+  "scripts": {
+    "npm run diamond": "Extrae + procesa leads (30 días, 200/condado)",
+    "node scripts/run_enricher.js": "Modo simulación — mock Outscraper con 941-xxx-xxxx",
+    "node scripts/run_enricher.js --live --all": "Modo real — requiere OUTSCRAPER_API_KEY en .env",
+    "python scripts/apollo_formatter.py --top 10": "Formatea leads para Apollo.io API",
+    "node scripts/generate_search_urls.js --open": "Abre búsquedas Google manuales en navegador"
+  },
+
+  "financialModel": {
+    "totalProjectValue": "max(declaredValuation, 250000) en PREMIUM; declaredValuation en STANDARD",
+    "premiumFloor": 250000,
+    "estNetProfitRate": 0.30,
+    "partnerShareRate": 0.35,
+    "premiumCities": ["Siesta Key", "Longboat Key", "Lakewood Ranch"],
+    "diamondCities": ["Siesta Key", "Longboat Key", "Lakewood Ranch"]
+  },
+
+  "urgencySkill": {
+    "roofingCritical": "Roofing + techo > 18 años → URGENTE cierre 7 días",
+    "cgcFloodZone": "CGC + ciudad zona inundación FEMA → URGENTE cierre 7 días",
+    "salesNote": "autogenerada en lead.urgency.salesNote"
+  },
+
+  "enrichmentStack": {
+    "phoneSource": "Outscraper Google Maps API (fuente oficial)",
+    "ownerName": "sc-pa.com / hcpafl.org (Property Appraiser — manual)",
+    "skiptracing": "BatchSkipTracing $0.12/registro (opcional para residenciales)",
+    "crmDestino": "GoHighLevel (GHL) — pendiente configuración"
+  },
+
+  "apiKeys": {
+    "apify": "configurado en .env",
+    "firecrawl": "configurado en .env",
+    "outscraper": "PENDIENTE — agregar OUTSCRAPER_API_KEY en .env",
+    "apollo": "pendiente",
+    "rentcast_zillow": "pendiente",
+    "crm_ghl": "pendiente"
+  },
+
   "dataSources": {
     "hillsborough": {
       "type": "live",
       "endpoint": "https://services.arcgis.com/apTfC6SUmnNfnxuF/arcgis/rest/services/AccelaDashBoard_MapService20211019/FeatureServer/4",
       "lastDataDate": "2026-04-02",
-      "notes": "Sin campo contractor — todos los leads son No-GC automáticamente"
+      "notes": "Sin campo contractor — todos quedan como No-GC automáticamente"
     },
     "sarasota": {
       "type": "demo",
-      "notes": "No existe API pública. Accela ACA requiere login. Demo data cubre ciudades premium correctamente."
+      "notes": "Accela ACA requiere login. No existe API pública. Demo cubre ciudades premium."
     }
   },
-  "financialModel": {
-    "totalProjectValue": "max(declaredValuation, premiumFloor) para PREMIUM; declaredValuation para STANDARD",
-    "premiumFloor": 250000,
-    "estNetProfitRate": 0.3,
-    "partnerShareRate": 0.35,
-    "premiumCities": [
-      "Siesta Key",
-      "Longboat Key",
-      "Lakewood Ranch"
-    ]
-  },
-  "pendingTasks": [
-    "Obtener nombres reales de propietarios via sc-pa.com",
-    "Agregar APOLLO_API_KEY en .env cuando esté disponible",
-    "Agregar RENTCAST_API_KEY o ZILLOW_API_KEY para comparador de mercado live",
-    "Definir formato JSON exacto del CRM del socio para el mapeador",
-    "Enriquecimiento de contactos: BatchSkipTracing o BeenVerified"
-  ],
-  "apiKeys": {
-    "apify": "configurado en .env",
-    "firecrawl": "configurado en .env (fc-a4d278e4d53c45a19a6e57784bdf766b)",
-    "apollo": "pendiente",
-    "zillow": "pendiente",
-    "crm": "pendiente — coordinar formato con socio"
-  },
-  "gitLog": [
-    {
-      "hash": "c75c7b9",
-      "message": "docs: agregar CLAUDE.md — Manual de Operaciones"
-    },
-    {
-      "hash": "bb35a56",
-      "message": "feat: modelo financiero partner TPV / Net Profit 30% / Partner Share 35%"
-    }
-  ],
+
   "blockers": {
-    "sarasotaLiveData": "Accela ACA requiere sesión autenticada. Sin solución pública conocida.",
-    "apifyProxies": "RESIDENTIAL proxy bloqueado en ambos portales de condado.",
-    "ownerNames": "ArcGIS no expone el campo de propietario. Requiere Property Appraiser manual o skiptracing."
+    "outscraper": "Necesita OUTSCRAPER_API_KEY para modo live",
+    "ownerNames": "ArcGIS no expone propietario — requiere Property Appraiser manual",
+    "sarasotaLive": "Sin API pública para Sarasota County",
+    "crmMapper": "Pendiente formato JSON exacto del CRM del socio"
   },
-  "newFiles": {
-    "scripts/apollo_formatter.py": "Formatea leads al esquema Apollo.io /v1/contacts. Uso: python scripts/apollo_formatter.py --top 10 --push",
-    "src/utils/zillow_comparator.js": "Compara TPV vs precio de mercado por zona. Marca leads SUBESTIMADO si TPV < 60% mediana. Fallback sin API key.",
-    "CLAUDE.md": "Manual de operaciones + protocolo de comportamiento. Auto-cargado por Claude Code.",
-    "session_state.json": "Estado persistente entre sesiones."
-  }
+
+  "gitLog": [
+    { "hash": "2ee2a24", "message": "feat: enricher Outscraper + Urgency Skill + LEADS_DIAMANTE_CON_TELEFONO.csv" },
+    { "hash": "97125bb", "message": "feat: protocolo operativo + apollo formatter + zillow comparator" },
+    { "hash": "c75c7b9", "message": "docs: CLAUDE.md — Manual de Operaciones" },
+    { "hash": "bb35a56", "message": "feat: modelo financiero TPV / Net Profit 30% / Partner Share 35%" }
+  ]
 }
