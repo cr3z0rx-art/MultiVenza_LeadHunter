@@ -148,6 +148,32 @@ Lead ID · Score · Tier · Tags · Category · Permit # · Permit Type · Permi
 
 ---
 
+## Protocolo de Actuación — MultiVenza LLC
+
+### Prioridad de trabajo
+1. **Máxima prioridad:** Leads No-GC en zonas PREMIUM con Partner Share ≥ $87,500
+2. **Segunda prioridad:** Cualquier lead No-GC con señal de techo crítico (15+ años)
+3. **Cambios de estrategia** (ciudades, filtros, scoring): actualizar `config.json` Y documentar el cambio en este archivo
+
+### Eficiencia de tokens
+- **NUNCA** leer archivos de `node_modules/`
+- **NUNCA** leer un CSV o JSON completo — usar `Grep` para headers, leer solo las filas necesarias
+- Usar `Glob` para localizar archivos antes de `Read`
+- Para archivos grandes: leer por secciones con `offset` + `limit`
+
+### Persistencia entre sesiones
+- Leer `session_state.json` al iniciar para retomar contexto
+- Actualizar `session_state.json` al terminar cada tarea
+- Al terminar: dar **resumen técnico de 3 líneas máximo**
+- Todo cambio en estrategia queda en este archivo (`CLAUDE.md`)
+
+### Output
+- Reportes siempre en `./output/` con formato Partner Share (TPV / Net Profit 30% / Partner Share 35%)
+- CSVs con columnas: Total Project Value ($) · Est. Net Profit 30% ($) · MultiVenza Partner Share 35% ($)
+- Responder siempre en **español**
+
+---
+
 ## Contexto de Sesiones Anteriores
 
 - **Apify:** actor `puppeteer-scraper` configurado pero bloqueado por proxies RESIDENTIAL en ambos portales. Usar `arcgis_extractor.js` en su lugar.
