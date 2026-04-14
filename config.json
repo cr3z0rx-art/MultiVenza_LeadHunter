@@ -1,0 +1,171 @@
+{
+  "project": "MultiVenza LeadHunter",
+  "version": "1.0.0",
+  "region": {
+    "name": "Florida West Coast",
+    "counties": [
+      "Hillsborough",
+      "Pinellas",
+      "Sarasota",
+      "Manatee",
+      "Charlotte",
+      "Lee",
+      "Collier"
+    ],
+    "state": "FL",
+    "targetCities": [
+      "Siesta Key",
+      "Lido Key",
+      "St. Armands",
+      "Lakewood Ranch",
+      "Longboat Key",
+      "Bradenton",
+      "Palmetto",
+      "Laurel",
+      "Venice",
+      "Nokomis",
+      "North Port",
+      "St. Petersburg",
+      "Port Charlotte",
+      "Punta Gorda",
+      "Tampa"
+    ],
+    "premiumCities": [
+      "Siesta Key",
+      "Longboat Key",
+      "Lakewood Ranch"
+    ]
+  },
+
+  "apify": {
+    "actorId": "apify/web-scraper",
+    "token": "${APIFY_TOKEN}",
+    "maxItems": 5000,
+    "permitSources": [
+      "https://www.hillsboroughcounty.org/en/residents/property-owner-tools/building-permits",
+      "https://egov.pinellascounty.org/permits/",
+      "https://sarasotacountyfl.gov/building-permits",
+      "https://www.mymanatee.org/departments/building___development_services/building_permits",
+      "https://www.charlottecountyfl.gov/departments/community-development/building-construction-services"
+    ],
+    "proxyConfig": {
+      "useApifyProxy": true,
+      "apifyProxyGroups": ["RESIDENTIAL"]
+    }
+  },
+
+  "leadCategories": {
+    "roofing": {
+      "enabled": true,
+      "permitKeywords": ["ROOF", "RE-ROOF", "REROOF", "SHINGLE", "TILE ROOF", "METAL ROOF", "FLAT ROOF"],
+      "priority": 1
+    },
+    "cgc": {
+      "enabled": true,
+      "permitKeywords": ["CGC", "CERTIFIED GENERAL CONTRACTOR", "ADDITION", "REMODEL", "ALTERATION", "NEW CONSTRUCTION"],
+      "licensePrefix": "CGC",
+      "priority": 2
+    },
+    "homeBuilders": {
+      "enabled": true,
+      "permitKeywords": ["NEW HOME", "SFR", "SINGLE FAMILY", "RESIDENTIAL NEW", "CUSTOM HOME"],
+      "priority": 3
+    }
+  },
+
+  "commission": {
+    "rate": 0.35,
+    "description": "35% commission on estimated contract value",
+    "premium": {
+      "cities": ["Siesta Key", "Longboat Key", "Lakewood Ranch"],
+      "valuationFloor": 250000,
+      "description": "Premium zone properties command higher contract values. If permit valuation is below the floor, use the floor for commission projection — permit valuations in luxury markets are routinely under-declared relative to total project value."
+    }
+  },
+
+  "filters": {
+    "noGC": {
+      "enabled": true,
+      "description": "Prioritize permits with no General Contractor listed (owner-builder or unassigned)",
+      "boostScore": 40,
+      "identifiers": ["OWNER BUILDER", "OWNER-BUILDER", "NO GC", "SELF", "HOMEOWNER", ""]
+    },
+    "roofAgeRule": {
+      "enabled": true,
+      "name": "15-Year Rule",
+      "description": "Flag properties with roofs older than 15 years as high-priority — Florida insurers require replacement at 15+ years",
+      "thresholdYears": 15,
+      "warningYears": 12,
+      "boostScore": 50,
+      "dataSource": "permit_date"
+    },
+    "permitStatus": {
+      "include": ["ISSUED", "FINALED", "EXPIRED", "APPLIED"],
+      "exclude": ["VOID", "WITHDRAWN", "CANCELLED"]
+    },
+    "valuationMin": 5000,
+    "excludedZips": [],
+    "cityFilter": {
+      "enabled": true,
+      "description": "Only process permits from targetCities. Records from outside the list are dropped."
+    }
+  },
+
+  "scoring": {
+    "baseScore": 10,
+    "maxScore": 100,
+    "weights": {
+      "noGC": 40,
+      "roofAge15Plus": 50,
+      "roofAge12to15": 25,
+      "roofingCategory": 20,
+      "cgcCategory": 15,
+      "homeBuilderCategory": 10,
+      "highValuation": 15,
+      "expiredPermit": 10,
+      "recentPermit": 5,
+      "premiumCity": 20
+    },
+    "highValueThreshold": 50000,
+    "recentPermitDays": 90
+  },
+
+  "output": {
+    "directory": "./output",
+    "formats": ["json", "csv"],
+    "filePrefix": "leads_florida_wc",
+    "separateByCategory": true,
+    "separateByCounty": false
+  },
+
+  "crm": {
+    "provider": "${CRM_PROVIDER}",
+    "apiEndpoint": "${CRM_API_ENDPOINT}",
+    "apiKey": "${CRM_API_KEY}",
+    "fieldMapping": {
+      "leadId": "external_id",
+      "ownerName": "contact_name",
+      "address": "property_address",
+      "city": "city",
+      "county": "county",
+      "zip": "zip_code",
+      "permitNumber": "permit_number",
+      "permitType": "lead_category",
+      "permitDate": "permit_date",
+      "roofYear": "roof_year",
+      "contractorName": "contractor",
+      "score": "lead_score",
+      "flags": "tags",
+      "tier": "tier",
+      "commissionProjected": "commission_projected"
+    },
+    "duplicateCheckFields": ["address", "permitNumber"],
+    "auditBatchSize": 100
+  },
+
+  "logging": {
+    "level": "info",
+    "file": "./output/run.log",
+    "console": true
+  }
+}

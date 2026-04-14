@@ -1,0 +1,334 @@
+'use strict';
+
+/**
+ * arcgis_extractor.js
+ * Pulls real permit records from Florida county ArcGIS REST endpoints.
+ * No authentication required — these are public FeatureServer endpoints.
+ *
+ * Currently supported counties (live ArcGIS):
+ *   Hillsborough → services.arcgis.com/apTfC6SUmnNfnxuF/...
+ *                  AccelaDashBoard_MapService20211019 / FeatureServer / Layer 4
+ *                  Fields: PERMIT__, TYPE, ISSUED_DATE, ADDRESS, CITY, Value,
+ *                          DESCRIPTION, STATUS, PARCEL, OCCUPANCY_TYPE, CATEGORY
+ *
+ * RawPermit shape (matches processor.js expectations):
+ * {
+ *   permitNumber, permitType, permitDate, status,
+ *   address, city, county, zip,
+ *   ownerName, contractorName, contractorLic,
+ *   valuation, roofYear, source,
+ *   tier: 'PREMIUM'|'STANDARD', tags: string[]
+ * }
+ */
+
+const https  = require('https');
+const Logger = require('./utils/logger');
+
+// ─── Source definitions ───────────────────────────────────────────────────────
+
+const ARCGIS_SOURCES = {
+  Hillsborough: {
+    baseUrl:    'https://services.arcgis.com/apTfC6SUmnNfnxuF/arcgis/rest/services/AccelaDashBoard_MapService20211019/FeatureServer/4',
+    county:     'Hillsborough',
+    // Permit types that map to our Roofing / CGC / Home Builder categories
+    permitTypes: [
+      'Residential New Construction',
+      'Residential Building Alterations (Renovations)',
+      'Residential Miscellaneous',
+      'Commercial New Construction',
+    ],
+    // Field containing dollar valuation
+    valuationField: 'Value',
+  },
+};
+
+// ─── Demo data (Sarasota + premium cities) ────────────────────────────────────
+
+function _buildSarasotaDemoRecords(count = 25) {
+  const today = new Date();
+  const records = [];
+
+  const sarasotaTemplates = [
+    { city: 'Siesta Key',     zip: '34242', type: 'Residential Roofing',     desc: 'RE-ROOF - Tile to Metal Roof Replacement',      val: 28000,  contractor: null },
+    { city: 'Siesta Key',     zip: '34242', type: 'Residential Roofing',     desc: 'REROOF - Flat roof membrane replacement',         val: 35000,  contractor: null },
+    { city: 'Longboat Key',   zip: '34228', type: 'Residential New Construction', desc: 'New Single Family Residence - Custom Home',   val: 1850000, contractor: 'COASTAL BUILDERS LLC' },
+    { city: 'Longboat Key',   zip: '34228', type: 'Residential Roofing',     desc: 'ROOF REPLACEMENT - Hurricane damage repair',     val: 52000,  contractor: null },
+    { city: 'Lakewood Ranch', zip: '34202', type: 'Residential New Construction', desc: 'New Single Family Residential Construction', val: 420000, contractor: null },
+    { city: 'Lakewood Ranch', zip: '34202', type: 'Residential Roofing',     desc: 'RE-ROOF - Shingle replacement - 17 yr old roof', val: 22000,  contractor: null },
+    { city: 'Lakewood Ranch', zip: '34211', type: 'Commercial New Construction', desc: 'New Construction commercial addition remodel', val: 680000, contractor: 'PREMIER CGC INC' },
+    { city: 'Venice',         zip: '34285', type: 'Residential Roofing',     desc: 'ROOF REPLACEMENT - Flat roof - age 16 years',    val: 18500,  contractor: null },
+    { city: 'Venice',         zip: '34292', type: 'Residential New Construction', desc: 'Single Family Residential New Construction', val: 310000, contractor: 'GULF COAST BUILDERS' },
+    { city: 'North Port',     zip: '34291', type: 'Residential New Construction', desc: 'New Single Family Residence construction',   val: 275000, contractor: null },
+    { city: 'North Port',     zip: '34291', type: 'Residential Roofing',     desc: 'REROOF - tile roof replacement - 15 year old',   val: 19000,  contractor: null },
+    { city: 'Nokomis',        zip: '34275', type: 'Residential Roofing',     desc: 'RE-ROOF metal roof replacement',                val: 24000,  contractor: null },
+    { city: 'Bradenton',      zip: '34205', type: 'Residential Roofing',     desc: 'ROOF REPLACEMENT shingle re-roof',               val: 15000,  contractor: 'SUNCOAST ROOFING' },
+    { city: 'Bradenton',      zip: '34210', type: 'Residential New Construction', desc: 'New Home Construction single family',       val: 380000, contractor: null },
+    { city: 'Palmetto',       zip: '34221', type: 'Residential Roofing',     desc: 'REROOF - complete shingle roof replacement',     val: 16500,  contractor: null },
+    { city: 'Laurel',         zip: '34272', type: 'Residential Roofing',     desc: 'RE-ROOF - tile replacement 18 yr roof age',     val: 27000,  contractor: null },
+    { city: 'Siesta Key',     zip: '34242', type: 'Commercial New Construction', desc: 'Commercial renovation and remodel addition', val: 925000, contractor: null },
+    { city: 'Longboat Key',   zip: '34228', type: 'Residential New Construction', desc: 'Custom Home New Construction Single Family', val: 2200000, contractor: null },
+    { city: 'Lakewood Ranch', zip: '34202', type: 'Residential Roofing',     desc: 'ROOF REPLACEMENT - Full re-roof metal panels',   val: 31000,  contractor: null },
+    { city: 'Venice',         zip: '34285', type: 'Commercial New Construction', desc: 'New construction CGC commercial project',    val: 540000, contractor: 'VENICE CONSTRUCTION' },
+    { city: 'North Port',     zip: '34291', type: 'Residential Roofing',     desc: 'RE-ROOF - Complete reroof after inspection',    val: 20500,  contractor: null },
+    { city: 'Siesta Key',     zip: '34242', type: 'Residential Roofing',     desc: 'REROOF full replacement - 20 year old tile',    val: 42000,  contractor: null },
+    { city: 'Lakewood Ranch', zip: '34211', type: 'Residential New Construction', desc: 'New Custom Luxury Home Single Family Res',  val: 850000, contractor: null },
+    { city: 'Bradenton',      zip: '34208', type: 'Residential Roofing',     desc: 'RE-ROOF shingle to metal upgrade',              val: 23000,  contractor: null },
+    { city: 'Longboat Key',   zip: '34228', type: 'Residential Roofing',     desc: 'ROOF REPLACEMENT - full reroof high value',     val: 68000,  contractor: null },
+  ];
+
+  const premiumCities = new Set(['SIESTA KEY', 'LONGBOAT KEY', 'LAKEWOOD RANCH']);
+
+  for (let i = 0; i < Math.min(count, sarasotaTemplates.length); i++) {
+    const t = sarasotaTemplates[i];
+    const daysAgo = Math.floor(Math.random() * 28) + 1; // 1–28 days ago
+    const permitDate = new Date(today);
+    permitDate.setDate(permitDate.getDate() - daysAgo);
+
+    const isRoofing = t.desc.toUpperCase().includes('ROOF');
+    // Simulate roofYear for roofing permits: 13–20 years ago
+    const roofAge   = isRoofing ? (Math.floor(Math.random() * 8) + 13) : null;
+    const roofYear  = roofAge ? new Date(today.getFullYear() - roofAge, 5, 1).toISOString().slice(0, 10) : null;
+
+    const isPremium = premiumCities.has(t.city.toUpperCase());
+
+    records.push({
+      permitNumber:   `SC-BLD-26-${String(1000000 + i).slice(1)}`,
+      permitType:     t.desc,   // full description for keyword matching
+      permitDate:     permitDate.toISOString().slice(0, 10),
+      status:         'Issued',
+      address:        `${1000 + i * 17} ${['Gulf Dr', 'Bay Blvd', 'Palm Ave', 'Beach Rd', 'Shoreline Dr'][i % 5]}`,
+      city:           t.city,
+      county:         'Sarasota',
+      zip:            t.zip,
+      ownerName:      `Owner ${i + 1}`,
+      contractorName: t.contractor,
+      contractorLic:  null,
+      valuation:      t.val,
+      roofYear,
+      source:         'Sarasota County Permit Office (Demo)',
+      tier:           isPremium ? 'PREMIUM' : 'STANDARD',
+      tags:           isPremium ? ['PREMIUM'] : [],
+    });
+  }
+
+  return records;
+}
+
+// ─── ArcGIS query helper ──────────────────────────────────────────────────────
+
+function _httpsGet(url, postData) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const options = {
+      hostname: parsed.hostname,
+      path:     parsed.pathname,
+      method:   'POST',
+      headers: {
+        'Content-Type':   'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(postData),
+      },
+    };
+
+    const req = https.request(options, res => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch (e) { reject(new Error(`JSON parse error: ${e.message} — body: ${data.slice(0, 200)}`)); }
+      });
+    });
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
+  });
+}
+
+function _buildPostData(params) {
+  return Object.entries(params)
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join('&');
+}
+
+// ─── Field parsers ────────────────────────────────────────────────────────────
+
+/**
+ * Parse Hillsborough CITY field "Tampa 33615" → { city: "Tampa", zip: "33615" }
+ * Some values: "Tampa 33615", "Apollo Beach 33572", "Plant City 33563"
+ */
+function _parseCity(rawCity) {
+  if (!rawCity) return { city: '', zip: '' };
+  const parts = rawCity.trim().split(/\s+/);
+  // Last part is usually a 5-digit ZIP
+  if (parts.length >= 2 && /^\d{5}$/.test(parts[parts.length - 1])) {
+    const zip  = parts.pop();
+    const city = parts.join(' ');
+    return { city, zip };
+  }
+  return { city: rawCity.trim(), zip: '' };
+}
+
+/**
+ * Convert ArcGIS epoch-ms timestamp to ISO date string "YYYY-MM-DD"
+ */
+function _parseDate(epochMs) {
+  if (!epochMs) return null;
+  return new Date(epochMs).toISOString().slice(0, 10);
+}
+
+/**
+ * Map an ArcGIS Hillsborough feature → RawPermit shape.
+ * Note: The ArcGIS layer has no contractor field — all permits are No-GC candidates.
+ */
+function _mapHillsboroughFeature(feature) {
+  const a = feature.attributes;
+  const { city, zip } = _parseCity(a.CITY);
+
+  // Combine TYPE + DESCRIPTION for richer keyword matching in processor
+  const typeDesc = [a.TYPE, a.DESCRIPTION].filter(Boolean).join(' ').trim();
+
+  return {
+    permitNumber:   a.PERMIT__ || `HC-UNKNOWN-${Date.now()}`,
+    permitType:     typeDesc,
+    permitDate:     _parseDate(a.ISSUED_DATE),
+    status:         a.STATUS || 'Issued',
+    address:        a.ADDRESS || '',
+    city,
+    county:         'Hillsborough',
+    zip,
+    ownerName:      null,        // not in ArcGIS layer
+    contractorName: null,        // not in ArcGIS layer → processor flags as No-GC
+    contractorLic:  null,
+    valuation:      typeof a.Value === 'number' ? a.Value : 0,
+    roofYear:       null,        // derive from permitDate in roof rules
+    source:         'Hillsborough County ArcGIS (AccelaDashBoard)',
+    tier:           'STANDARD',  // processor will re-classify by city
+    tags:           [],
+  };
+}
+
+// ─── Main extractor class ─────────────────────────────────────────────────────
+
+class ArcGISExtractor {
+  constructor(config) {
+    this.config         = config;
+    this.logger         = new Logger(config.logging);
+    this._premiumCities = new Set(
+      (config.region.premiumCities || []).map(c => c.trim().toUpperCase())
+    );
+  }
+
+  /**
+   * @param {object} opts
+   * @param {string[]} opts.counties           — e.g. ['Hillsborough', 'Sarasota']
+   * @param {number}   opts.daysBack           — how many days back to query (default 30)
+   * @param {number}   opts.maxRecords         — max records per county (default 200)
+   * @param {boolean}  opts.sarasotaDemoMode   — use demo data for Sarasota (default true,
+   *                                             since no public API exists for Sarasota)
+   * @returns {Promise<object[]>} rawRecords
+   */
+  async run(opts = {}) {
+    const {
+      counties         = ['Hillsborough', 'Sarasota'],
+      daysBack         = 30,
+      maxRecords       = 200,
+      sarasotaDemoMode = true,
+    } = opts;
+
+    this.logger.separator('ARCGIS EXTRACTOR');
+    this.logger.info(`Counties: ${counties.join(', ')}`);
+    this.logger.info(`Days back: ${daysBack}  |  Max per county: ${maxRecords}`);
+
+    const allRecords = [];
+
+    for (const county of counties) {
+      if (county === 'Sarasota') {
+        if (sarasotaDemoMode) {
+          this.logger.info('Sarasota: no public ArcGIS API available — using realistic demo data');
+          const demo = _buildSarasotaDemoRecords(Math.min(maxRecords, 25));
+          allRecords.push(...demo);
+          this.logger.info(`Sarasota demo: ${demo.length} records`);
+        } else {
+          this.logger.warn('Sarasota live mode requested but no endpoint available — skipping');
+        }
+        continue;
+      }
+
+      const source = ARCGIS_SOURCES[county];
+      if (!source) {
+        this.logger.warn(`No ArcGIS source configured for county: ${county}`);
+        continue;
+      }
+
+      try {
+        const records = await this._queryCounty(source, daysBack, maxRecords);
+        allRecords.push(...records);
+        this.logger.info(`${county}: ${records.length} records fetched`);
+      } catch (err) {
+        this.logger.error(`${county} fetch failed: ${err.message}`);
+      }
+    }
+
+    // Classify premium cities (processor also does this; belt-and-suspenders)
+    for (const r of allRecords) {
+      if (this._premiumCities.has((r.city || '').trim().toUpperCase())) {
+        r.tier = 'PREMIUM';
+        if (!r.tags.includes('PREMIUM')) r.tags.push('PREMIUM');
+      }
+    }
+
+    this.logger.info(`Total raw records: ${allRecords.length}`);
+    return allRecords;
+  }
+
+  // ─── County query ───────────────────────────────────────────────────────────
+
+  async _queryCounty(source, daysBack, maxRecords) {
+    const sinceDate = new Date();
+    sinceDate.setDate(sinceDate.getDate() - daysBack);
+    const dateStr = sinceDate.toISOString().slice(0, 10);  // "YYYY-MM-DD"
+
+    const typeList = source.permitTypes.map(t => `'${t}'`).join(',');
+    const where    = `TYPE IN (${typeList}) AND ISSUED_DATE >= date '${dateStr}'`;
+
+    this.logger.debug(`${source.county} query: ${where}`);
+
+    const features = await this._paginateQuery(source.baseUrl, where, maxRecords);
+    return features.map(_mapHillsboroughFeature);
+  }
+
+  // ─── Pagination (ArcGIS max 2000 per call) ──────────────────────────────────
+
+  async _paginateQuery(baseUrl, where, maxRecords) {
+    const pageSize = Math.min(maxRecords, 1000);
+    const allFeatures = [];
+    let offset = 0;
+
+    while (allFeatures.length < maxRecords) {
+      const remaining = maxRecords - allFeatures.length;
+      const postData  = _buildPostData({
+        where,
+        outFields:         'PERMIT__,TYPE,ISSUED_DATE,ADDRESS,CITY,Value,DESCRIPTION,STATUS,PARCEL',
+        resultRecordCount: Math.min(pageSize, remaining),
+        resultOffset:      offset,
+        orderByFields:     'ISSUED_DATE DESC',
+        f:                 'json',
+      });
+
+      const data = await _httpsGet(`${baseUrl}/query`, postData);
+
+      if (data.error) {
+        throw new Error(`ArcGIS error ${data.error.code}: ${data.error.message}`);
+      }
+
+      const features = data.features || [];
+      allFeatures.push(...features);
+
+      if (features.length < pageSize || !data.exceededTransferLimit) break;
+      offset += features.length;
+    }
+
+    return allFeatures;
+  }
+}
+
+module.exports = ArcGISExtractor;
