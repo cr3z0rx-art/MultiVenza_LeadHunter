@@ -14,9 +14,10 @@
  *   5. 15-Year rule   — evaluate roof age, apply urgency classification
  *   6. Premium city   — apply PREMIUM tag + score boost for key zones
  *   7. Score          — compute composite lead score (0–100)
- *   8. Commission     — project 35% commission using premium-adjusted valuation
- *   9. Sort           — highest score first within each category
- *  10. Write          — JSON + CSV per category
+ *   8. Project Value  — TPV / Est. Net Profit 30% / Partner Share 35%
+ *   9. Urgency Skill  — URGENTE flag + sales note for roof 18yr+ and CGC flood zones
+ *  10. Sort           — highest score first within each category
+ *  11. Write          — JSON + CSV per category
  */
 
 const path   = require('path');
@@ -143,7 +144,18 @@ class Processor {
     // 8. Total Project Value — market-adjusted contract value for FL West Coast
     const projectValue = this._calcProjectValue(valuation, isPremium, category);
 
-    // 9. Build lead object
+    // 9. Urgency Skill — evaluate closing window
+    const urgencyPartial = {
+      category, flags: { noGC, premium: isPremium },
+      roofAnalysis, status: record.status,
+      city: record.city,
+      projectValue,
+      valuation,
+    };
+    const urgency = rules.evaluateUrgency(urgencyPartial, { roofUrgencyAge: 18 });
+    if (urgency.urgent && !tags.includes('URGENTE')) tags.push('URGENTE');
+
+    // 10. Build lead object
     return {
       leadId:         this._leadId(record),
       permitNumber:   record.permitNumber,
@@ -170,6 +182,7 @@ class Processor {
         roofWarm:     roofAnalysis.classification === 'warm',
         highValue:    valuation >= this.scoring.highValueThreshold,
       },
+      urgency,
       score,
       source: record.source,
       processedAt: new Date().toISOString(),

@@ -78,6 +78,28 @@ Campo `contractorName` = null, vacío, "OWNER BUILDER", "NONE", "HOMEOWNER" → 
 
 ---
 
+## Stack de Enriquecimiento de Contactos
+
+**Ventaja competitiva MultiVenza:** Permiso Real (ArcGIS) + Teléfono de Google Maps (Outscraper) + Inteligencia de Urgencia (Claude)
+
+| Paso | Herramienta | Costo | Estado |
+|---|---|---|---|
+| Datos de permiso | ArcGIS REST API (Hillsborough) | Gratis | ✅ Activo |
+| Nombre del propietario | sc-pa.com / hcpafl.org (Property Appraiser) | Gratis | Manual |
+| Teléfono comercial | **Outscraper Google Maps API** | Por crédito | 🔑 Necesita key |
+| Enriquecimiento personal | BatchSkipTracing ($0.12/registro) | $0.12/lead | Opcional |
+| CRM destino | GoHighLevel (GHL) | Plan mensual | Pendiente |
+
+**Regla de enriquecimiento:**
+- Outscraper es la fuente oficial de teléfonos — NO usar Apollo.io ni RocketReach
+- Outscraper funciona bien para leads **CGC/comerciales** (tienen listing en Google Maps)
+- Para leads **residenciales** (roofing, homeBuilders): usar Property Appraiser + BatchSkipTracing
+- Clasificación DIAMANTE = ciudad PREMIUM (Siesta Key / Longboat Key / Lakewood Ranch) + teléfono verificado por Outscraper
+
+**Output enriquecido:** `output/LEADS_DIAMANTE_CON_TELEFONO_{fecha}.csv`
+
+---
+
 ## Fuentes de Datos
 
 ### Hillsborough County (LIVE — datos reales)
