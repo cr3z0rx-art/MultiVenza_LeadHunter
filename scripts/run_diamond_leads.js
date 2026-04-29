@@ -28,6 +28,7 @@ const config          = require('../config.json');
 const ArcGISExtractor = require('../src/arcgis_extractor');
 const Processor       = require('../src/processor');
 const Logger          = require('../src/utils/logger');
+const { syncFLLeads } = require('./lib/saas_sync');
 
 // ─── Parse CLI args ────────────────────────────────────────────────────────
 
@@ -88,6 +89,9 @@ async function main() {
   // ── 3. Process ─────────────────────────────────────────────────────────────
   const processor = new Processor(config);
   const { leads, stats } = await processor.run(rawRecords);
+
+  // ── 3b. Sync to SaaS API ───────────────────────────────────────────────────
+  await syncFLLeads(leads, `FL-${ts}`);
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 

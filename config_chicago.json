@@ -1,0 +1,25 @@
+{
+  "region": "Illinois",
+  "counties": [
+    "Cook"
+  ],
+  "cities": [
+    "Chicago",
+    "Evanston",
+    "Skokie",
+    "Cicero"
+  ],
+  "permitTypes": [
+    "Porch Construction",
+    "Basement Finishing",
+    "Commercial Build-out",
+    "Roofing",
+    "Remodel"
+  ],
+  "scoring": {
+    "base": 100
+  },
+  "financials": {
+    "netProfitMargin": 0.35
+  }
+}

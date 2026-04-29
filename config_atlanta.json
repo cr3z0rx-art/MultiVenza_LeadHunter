@@ -1,0 +1,15 @@
+{
+  "region": "Georgia",
+  "counties": ["Fulton", "DeKalb", "Cobb", "Gwinnett"],
+  "cities": ["Atlanta", "Marietta", "Alpharetta", "Lawrenceville", "Decatur"],
+  "permitTypes": ["Roofing", "Interior Remodel", "New Construction", "Low Voltage"],
+  "scoring": {
+    "base": 100,
+    "boosts": {
+      "Alpharetta": 50
+    }
+  },
+  "financials": {
+    "netProfitMargin": 0.35
+  }
+}

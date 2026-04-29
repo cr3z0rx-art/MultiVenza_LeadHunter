@@ -62,7 +62,7 @@ async function main() {
   const { enriched, stats } = await enricher.run(leads, {
     onlyCommercial: !ALL,
     dryRun:         isDryRun,
-    delayMs:        isDryRun ? 0 : 600,
+    concurrency:    isDryRun ? 10 : 5, // Mayor concurrencia en modo simulación
   });
 
   // ── Resumen en terminal ───────────────────────────────────────────────────

@@ -7,29 +7,17 @@
  * Flujo:
  *   Dirección del Permiso → Búsqueda Outscraper (Google Maps) → Teléfono + Nombre
  *
- * Limitaciones conocidas:
- *   - Google Maps solo tiene listings de negocios registrados públicamente.
- *   - Leads CGC/comerciales: alta probabilidad de resultado.
- *   - Leads roofing/homeBuilders residenciales: baja probabilidad.
- *   - Si no hay match en la dirección exacta, se marca como SKIP_RESIDENTIAL.
- *
- * Documentación Outscraper:
- *   https://app.outscraper.com/api-docs#tag/Google-Maps/paths/~1maps~1search-v3/get
- *
- * Configurar en .env:
- *   OUTSCRAPER_API_KEY=tu_key_aqui
- *
- * Uso:
- *   const Enricher = require('./enricher');
- *   const enricher = new Enricher(config);
- *   const results  = await enricher.run(leads);
+ * Optimizaciones:
+ *   - Modo Paralelo: Procesa múltiples leads simultáneamente con límite de concurrencia.
+ *   - Sistema de Caché: Evita re-consultar direcciones ya procesadas.
  */
 
 const https  = require('https');
 const path   = require('path');
-const fs     = require('fs');
+const fs     = require('fs-extra');
 const { createObjectCsvWriter } = require('csv-writer');
 const Logger = require('./utils/logger');
+const CacheManager = require('./utils/cache_manager');
 
 // Ciudades que califican para clasificación DIAMANTE
 const DIAMOND_CITIES = new Set(['SIESTA KEY', 'LONGBOAT KEY', 'LAKEWOOD RANCH']);
@@ -49,6 +37,7 @@ class Enricher {
     this.logger  = new Logger(config.logging);
     this.apiKey  = process.env.OUTSCRAPER_API_KEY || '';
     this.baseUrl = 'api.outscraper.com';
+    this.cache   = new CacheManager(path.join(process.cwd(), '.tmp', 'enrichment_cache.json'));
   }
 
   /**
@@ -57,14 +46,14 @@ class Enricher {
    * @param {object[]} leads
    * @param {object}   opts
    * @param {boolean}  opts.onlyCommercial  — solo procesar leads CGC/comerciales (default: true)
-   * @param {number}   opts.delayMs         — pausa entre llamadas para no saturar la API (default: 500)
+   * @param {number}   opts.concurrency     — número de peticiones en paralelo (default: 3)
    * @param {boolean}  opts.dryRun          — simular sin llamar a la API (default: si no hay API key)
    * @returns {Promise<{ enriched: object[], stats: object }>}
    */
   async run(leads, opts = {}) {
     const {
       onlyCommercial = true,
-      delayMs        = 500,
+      concurrency    = 3,
       dryRun         = !this.apiKey,
     } = opts;
 
@@ -73,9 +62,10 @@ class Enricher {
       throw new Error('Missing OUTSCRAPER_API_KEY');
     }
 
-    this.logger.separator('ENRICHER — OUTSCRAPER');
+    this.logger.separator('ENRICHER — OUTSCRAPER (PARALLEL MODE)');
     this.logger.info(`Total leads recibidos : ${leads.length}`);
     this.logger.info(`Solo comerciales      : ${onlyCommercial}`);
+    this.logger.info(`Concurrencia          : ${concurrency}`);
     this.logger.info(`Modo                  : ${dryRun ? 'DRY RUN (sin API key)' : 'LIVE'}`);
 
     const stats = {
@@ -84,31 +74,42 @@ class Enricher {
       found:      0,
       skipped:    0,
       failed:     0,
+      cached:     0,
       creditsUsed: 0,
     };
 
-    const enriched = [];
+    const results = [];
+    const queue = [...leads];
+    const activeWorkers = [];
 
-    for (const lead of leads) {
+    // Worker function
+    const processLead = async (lead) => {
       // Solo procesar No-GC
       if (!lead.flags?.noGC) {
-        enriched.push({ ...lead, outscraper: { status: 'SKIP_HAS_GC' } });
         stats.skipped++;
-        continue;
+        return { ...lead, outscraper: { status: 'SKIP_HAS_GC' } };
       }
 
       // Filtrar por tipo comercial si se pide
       const isCommercial = this._isCommercialLead(lead);
       if (onlyCommercial && !isCommercial) {
-        enriched.push({
+        stats.skipped++;
+        return {
           ...lead,
           outscraper: {
             status: 'SKIP_RESIDENTIAL',
-            note:   'Propiedad residencial — Google Maps no tiene listing de propietarios privados. Usar Property Appraiser + skiptracing.',
+            note:   'Propiedad residencial — Google Maps no tiene listing de propietarios privados.',
           },
-        });
-        stats.skipped++;
-        continue;
+        };
+      }
+
+      const cacheKey = `${lead.address}_${lead.city}`.toUpperCase();
+      const cached = this.cache.get(cacheKey);
+      if (cached) {
+        stats.cached++;
+        if (cached.phone) stats.found++;
+        this.logger.info(`📦 [CACHE] ${lead.address} → ${cached.phone || 'NO_PHONE'}`);
+        return { ...lead, outscraper: cached };
       }
 
       stats.attempted++;
@@ -119,33 +120,45 @@ class Enricher {
           : await this._searchOutscraper(lead);
 
         const parsed = this._parseResult(result, lead);
-        enriched.push({ ...lead, outscraper: parsed });
-
-        if (parsed.phone) {
+        
+        if (parsed.phone && parsed.status === 'FOUND') {
           stats.found++;
-          this.logger.info(`✅ ${lead.address}, ${lead.city} → ${parsed.phone} (${parsed.businessName || 'sin nombre'})`);
+          this.logger.info(`✅ ${lead.address}, ${lead.city} → ${parsed.phone}`);
+          this.cache.set(cacheKey, parsed);
         } else {
           stats.failed++;
           this.logger.debug(`❌ Sin teléfono: ${lead.address}, ${lead.city}`);
+          this.cache.set(cacheKey, parsed); // Cache negative results too
         }
 
-        stats.creditsUsed += result._creditsUsed || 1;
-
-        // Pausa entre llamadas
-        if (!dryRun && delayMs > 0) {
-          await new Promise(r => setTimeout(r, delayMs));
-        }
+        stats.creditsUsed += result._creditsUsed || 0;
+        return { ...lead, outscraper: parsed };
       } catch (err) {
         this.logger.error(`Error en ${lead.address}: ${err.message}`);
-        enriched.push({ ...lead, outscraper: { status: 'ERROR', error: err.message } });
         stats.failed++;
+        return { ...lead, outscraper: { status: 'ERROR', error: err.message } };
+      }
+    };
+
+    // Parallel execution loop with concurrency limit
+    while (queue.length > 0 || activeWorkers.length > 0) {
+      while (activeWorkers.length < concurrency && queue.length > 0) {
+        const lead = queue.shift();
+        const promise = processLead(lead).then(res => {
+          results.push(res);
+          activeWorkers.splice(activeWorkers.indexOf(promise), 1);
+        });
+        activeWorkers.push(promise);
+      }
+      if (activeWorkers.length > 0) {
+        await Promise.race(activeWorkers);
       }
     }
 
     this.logger.info('Enriquecimiento completo', stats);
 
     // Clasificar DIAMANTE y escribir CSV final
-    const withClassification = enriched.map(l => this._classify(l));
+    const withClassification = results.map(l => this._classify(l));
     await this._writeDiamondCSV(withClassification);
 
     return { enriched: withClassification, stats };
@@ -181,9 +194,8 @@ class Enricher {
     const outDir  = this.config.output?.directory || './output';
     const outPath = path.join(outDir, `LEADS_DIAMANTE_CON_TELEFONO_${ts}.csv`);
 
-    fs.mkdirSync(outDir, { recursive: true });
+    await fs.ensureDir(outDir);
 
-    // Solo incluir leads con al menos clasificación PREMIUM_SIN_TEL o DIAMANTE
     const relevant = leads.filter(l =>
       l.diamondClass === 'DIAMANTE' || l.diamondClass === 'PREMIUM_SIN_TEL' ||
       (l.flags?.noGC && l.flags?.premium)
@@ -259,8 +271,6 @@ class Enricher {
     this.logger.info(`DIAMANTE CSV → ${outPath}  (${rows.length} leads)`);
   }
 
-  // ─── Outscraper API call ──────────────────────────────────────────────────
-
   _searchOutscraper(lead) {
     const query = this._buildQuery(lead);
     const path  = `/maps/search-v3?query=${encodeURIComponent(query)}&language=en&region=US&organizationsPerQueryLimit=1&async=false&apiKey=${this.apiKey}`;
@@ -278,12 +288,10 @@ class Enricher {
         res.on('data', chunk => { data += chunk; });
         res.on('end', () => {
           try {
-            const body = JSON.parse(data);
             if (res.statusCode !== 200) {
-              reject(new Error(`Outscraper HTTP ${res.statusCode}: ${JSON.stringify(body).slice(0, 200)}`));
-              return;
+               return reject(new Error(`Outscraper HTTP ${res.statusCode}`));
             }
-            // Outscraper devuelve { data: [[...results]], status: 'Success', ... }
+            const body = JSON.parse(data);
             body._creditsUsed = body.credits_used || 1;
             resolve(body);
           } catch (e) {
@@ -298,69 +306,43 @@ class Enricher {
     });
   }
 
-  // ─── Query builder ────────────────────────────────────────────────────────
-
   _buildQuery(lead) {
     const addr = [lead.address, lead.city, 'FL', lead.zip].filter(Boolean).join(', ');
-    // Para leads comerciales, añadir el tipo de negocio para mejor match
     const hint = this._isCommercialLead(lead) ? ' business' : '';
     return `${addr}${hint}`;
   }
 
-  // ─── Result parser ────────────────────────────────────────────────────────
-
   _parseResult(raw, lead) {
-    // Estructura: raw.data = [[result1, result2, ...]] (array de arrays por query)
     const results = (raw.data || [])[0] || [];
     const first   = results[0];
 
     if (!first) {
-      return {
-        status:       'NOT_FOUND',
-        query:        this._buildQuery(lead),
-        businessName: null,
-        phone:        null,
-        website:      null,
-        rating:       null,
-        note:         'Sin resultados en Google Maps para esta dirección.',
-      };
+      return { status: 'NOT_FOUND', phone: null };
     }
 
-    // Validar que el resultado es de la misma dirección (no un vecino)
     const returnedAddr = (first.address || first.full_address || '').toUpperCase();
     const leadAddr     = (lead.address || '').toUpperCase();
-    const addrMatch    = returnedAddr.includes(leadAddr.split(' ')[0]);  // primer número de calle
+    const addrMatch    = returnedAddr.includes(leadAddr.split(' ')[0]);
 
     const phone = first.phone || first.phone_1 || null;
 
     return {
-      status:         phone ? 'FOUND' : 'NO_PHONE',
-      query:          this._buildQuery(lead),
+      status:         (phone && addrMatch) ? 'FOUND' : 'NO_PHONE',
       businessName:   first.name || first.business_name || null,
       phone:          this._normalizePhone(phone),
       website:        first.site || first.website || null,
-      rating:         first.rating || null,
-      reviews:        first.reviews || null,
       fullAddress:    first.address || first.full_address || null,
-      addressMatch:   addrMatch,
-      note:           !addrMatch
-        ? '⚠️ El resultado puede ser un negocio cercano, no la propiedad exacta. Verificar manualmente.'
-        : '',
-      rawPlaceId:     first.place_id || null,
+      addressMatch:   addrMatch
     };
   }
-
-  // ─── Normalizar teléfono a formato +1XXXXXXXXXX ───────────────────────────
 
   _normalizePhone(raw) {
     if (!raw) return null;
     const digits = String(raw).replace(/\D/g, '');
     if (digits.length === 10) return `+1${digits}`;
     if (digits.length === 11 && digits[0] === '1') return `+${digits}`;
-    return raw;  // devolver original si no encaja
+    return raw;
   }
-
-  // ─── Detectar si es lead comercial ───────────────────────────────────────
 
   _isCommercialLead(lead) {
     if (COMMERCIAL_CATEGORIES.has(lead.category)) return true;
@@ -368,28 +350,19 @@ class Enricher {
     return COMMERCIAL_KEYWORDS.some(kw => typeUpper.includes(kw));
   }
 
-  // ─── Mock para dry run ────────────────────────────────────────────────────
-  // Genera teléfonos realistas de FL para PREMIUM cities (941-xxx-xxxx = Sarasota area)
-  // y Tampa (813-xxx-xxxx). Así el reporte final se ve completo aunque no haya API key.
-
   _mockResult(lead) {
     const isCommercial  = this._isCommercialLead(lead);
     const cityKey       = (lead.city || '').trim().toUpperCase();
     const isPremiumCity = DIAMOND_CITIES.has(cityKey);
 
-    // Generar teléfono para: comerciales siempre + ciudades premium siempre
     const generatePhone = isCommercial || isPremiumCity;
-    if (!generatePhone) {
-      return { _creditsUsed: 0, data: [[null]] };
-    }
+    if (!generatePhone) return { _creditsUsed: 0, data: [[null]] };
 
-    // Área 941 = Sarasota / Venice / North Port  |  813 = Tampa
     const areaCode = cityKey === 'TAMPA' ? '813' : '941';
     const mid      = String(Math.floor(200 + Math.random() * 800));
     const last     = String(Math.floor(1000 + Math.random() * 9000));
     const phone    = `(${areaCode}) ${mid}-${last}`;
 
-    // Tipo de nombre según categoría
     const nameMap = {
       cgc:          `${lead.city} General Contractors LLC`,
       roofing:      `${lead.city} Roofing & Restoration`,

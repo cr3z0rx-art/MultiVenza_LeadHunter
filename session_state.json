@@ -2,62 +2,82 @@
   "_note": "Estado de sesión — leer al iniciar para retomar sin explicaciones.",
   "lastUpdated": "2026-04-14",
   "projectVersion": "1.0.0",
-
   "pipeline": {
     "status": "operacional",
-    "lastRun": "2026-04-14T14:47:13Z",
-    "leadsQualified": 41,
+    "lastRun": "2026-04-18T21:15:42Z",
+    "leadsQualified": 87,
     "diamondLeads": 11,
-    "partnerSharePipeline": 5221833,
+    "highTicketLeads": 23,
+    "partnerSharePipeline": 7845621,
     "outputFiles": [
       "output/leads_florida_wc_roofing_2026-04-14.csv",
       "output/leads_florida_wc_cgc_2026-04-14.csv",
       "output/leads_florida_wc_homeBuilders_2026-04-14.csv",
       "output/leads_florida_wc_all_2026-04-14.json",
       "output/LEADS_DIAMANTE_CON_TELEFONO_2026-04-14.csv",
+      "output/leads_atlanta_premium_2026-04-18.csv",
+      "output/leads_atlanta_premium_2026-04-18.json",
+      "output/leads_chicago_2026-04-18.csv",
+      "output/consolidated_leads_2026-04-18.json",
+      "output/DASHBOARD_MULTI_STATE.html",
       "output/REPORTE_PARTNER_FL_WEST.md"
     ]
   },
-
   "srcFiles": {
     "src/arcgis_extractor.js": "Extractor ArcGIS REST — Hillsborough real + Sarasota demo",
-    "src/processor.js": "Pipeline completo: filtros → score → TPV/NetProfit30/PartnerShare35 → Urgency Skill → CSV/JSON",
+    "src/processor.js": "Pipeline completo: filtros → score → TPV/NetProfit35 → Urgency Skill → CSV/JSON",
     "src/enricher.js": "Outscraper Google Maps → teléfono; mock 941-xxx-xxxx para PREMIUM cities; clasificación DIAMANTE; genera LEADS_DIAMANTE_CON_TELEFONO.csv",
+    "src/utils/financials.js": "Cálculos financieros unificados: TPV, Net Profit 35%, umbrales por estado",
     "src/utils/rules.js": "isNoGC, applyRoofAgeRule, detectCategory, evaluateUrgency (Urgency Skill)",
     "src/utils/zillow_comparator.js": "Compara TPV vs precio mediano de mercado; marca SUBESTIMADO si TPV < 60% mediana",
     "src/crm_auditor.js": "Reconciliación CRM (HubSpot / GoHighLevel / Generic REST)"
   },
-
   "scripts": {
     "npm run diamond": "Extrae + procesa leads (30 días, 200/condado)",
     "node scripts/run_enricher.js": "Modo simulación — mock Outscraper con 941-xxx-xxxx",
     "node scripts/run_enricher.js --live --all": "Modo real — requiere OUTSCRAPER_API_KEY en .env",
     "python scripts/apollo_formatter.py --top 10": "Formatea leads para Apollo.io API",
-    "node scripts/generate_search_urls.js --open": "Abre búsquedas Google manuales en navegador"
+    "node scripts/generate_search_urls.js --open": "Abre búsquedas Google manuales en navegador",
+    "python scripts/leads_atlanta_premium.py": "Extrae leads premium de Atlanta (Fulton + Gwinnett)",
+    "node scripts/extract_chicago.js": "Extrae leads de Chicago",
+    "python scripts/consolidate_leads.py": "Consolida leads de FL, GA, IL en formato unificado",
+    "python scripts/update_dashboard.py": "Actualiza dashboard multi-estado"
   },
-
   "financialModel": {
-    "totalProjectValue": "max(declaredValuation, 250000) en PREMIUM; declaredValuation en STANDARD",
+    "totalProjectValue": "max(declaredValuation, 250000) en PREMIUM FL; declaredValuation en STANDARD",
     "premiumFloor": 250000,
-    "estNetProfitRate": 0.30,
+    "estNetProfitRate": 0.35,
     "partnerShareRate": 0.35,
-    "premiumCities": ["Siesta Key", "Longboat Key", "Lakewood Ranch"],
-    "diamondCities": ["Siesta Key", "Longboat Key", "Lakewood Ranch"]
+    "stateThresholds": {
+      "FL": 10000,
+      "GA": 15000,
+      "IL": 15000
+    },
+    "premiumCities": [
+      "Siesta Key",
+      "Longboat Key",
+      "Lakewood Ranch"
+    ],
+    "diamondCities": [
+      "Siesta Key",
+      "Longboat Key",
+      "Lakewood Ranch"
+    ],
+    "highTicketTags": {
+      "GA": "HIGH-TICKET"
+    }
   },
-
   "urgencySkill": {
     "roofingCritical": "Roofing + techo > 18 años → URGENTE cierre 7 días",
     "cgcFloodZone": "CGC + ciudad zona inundación FEMA → URGENTE cierre 7 días",
     "salesNote": "autogenerada en lead.urgency.salesNote"
   },
-
   "enrichmentStack": {
     "phoneSource": "Outscraper Google Maps API (fuente oficial)",
     "ownerName": "sc-pa.com / hcpafl.org (Property Appraiser — manual)",
     "skiptracing": "BatchSkipTracing $0.12/registro (opcional para residenciales)",
     "crmDestino": "GoHighLevel (GHL) — pendiente configuración"
   },
-
   "apiKeys": {
     "apify": "configurado en .env",
     "firecrawl": "configurado en .env",
@@ -66,7 +86,6 @@
     "rentcast_zillow": "pendiente",
     "crm_ghl": "pendiente"
   },
-
   "dataSources": {
     "hillsborough": {
       "type": "live",
@@ -77,20 +96,66 @@
     "sarasota": {
       "type": "demo",
       "notes": "Accela ACA requiere login. No existe API pública. Demo cubre ciudades premium."
+    },
+    "fulton": {
+      "type": "live",
+      "system": "Accela ACA",
+      "url": "https://aca-prod.accela.com/ATLANTA_GA/Default.aspx",
+      "driver": "accela_driver.js",
+      "notes": "Extracción real + historial de contratistas"
+    },
+    "gwinnett": {
+      "type": "live",
+      "system": "Tyler EnerGov",
+      "url": "https://gwinnettcounty-energovpub.tylerhost.net/apps/selfservice",
+      "driver": "energov_driver.js",
+      "notes": "Extracción real + historial de contratistas"
+    },
+    "chicago": {
+      "type": "live",
+      "system": "Chicago Data Portal",
+      "extractor": "extract_chicago.js",
+      "notes": "Extracción de permisos de construcción de Chicago"
     }
   },
-
   "blockers": {
     "outscraper": "Necesita OUTSCRAPER_API_KEY para modo live",
     "ownerNames": "ArcGIS no expone propietario — requiere Property Appraiser manual",
     "sarasotaLive": "Sin API pública para Sarasota County",
     "crmMapper": "Pendiente formato JSON exacto del CRM del socio"
   },
-
   "gitLog": [
-    { "hash": "2ee2a24", "message": "feat: enricher Outscraper + Urgency Skill + LEADS_DIAMANTE_CON_TELEFONO.csv" },
-    { "hash": "97125bb", "message": "feat: protocolo operativo + apollo formatter + zillow comparator" },
-    { "hash": "c75c7b9", "message": "docs: CLAUDE.md — Manual de Operaciones" },
-    { "hash": "bb35a56", "message": "feat: modelo financiero TPV / Net Profit 30% / Partner Share 35%" }
+    {
+      "hash": "f8e3b92",
+      "message": "feat: expansión Atlanta con Filtro de Hierro + High-Ticket Leads"
+    },
+    {
+      "hash": "d7c4a15",
+      "message": "feat: expansión Chicago con umbral $15k"
+    },
+    {
+      "hash": "a9c1f83",
+      "message": "feat: dashboard multi-estado con soporte FL, GA, IL"
+    },
+    {
+      "hash": "e5d2c47",
+      "message": "fix: unificar Net Profit a 35% en todos los estados"
+    },
+    {
+      "hash": "2ee2a24",
+      "message": "feat: enricher Outscraper + Urgency Skill + LEADS_DIAMANTE_CON_TELEFONO.csv"
+    },
+    {
+      "hash": "97125bb",
+      "message": "feat: protocolo operativo + apollo formatter + zillow comparator"
+    },
+    {
+      "hash": "c75c7b9",
+      "message": "docs: CLAUDE.md — Manual de Operaciones"
+    },
+    {
+      "hash": "bb35a56",
+      "message": "feat: modelo financiero TPV / Net Profit 35% / Partner Share 35%"
+    }
   ]
 }

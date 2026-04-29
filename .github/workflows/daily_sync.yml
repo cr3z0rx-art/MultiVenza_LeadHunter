@@ -1,0 +1,193 @@
+name: Daily Lead Sync — MultiVenza
+
+# ─── Triggers ──────────────────────────────────────────────────────────────────
+on:
+  schedule:
+    # 6:00 AM EST (11:00 UTC) — lunes a viernes
+    # En EDT (verano) se dispara a las 7:00 AM ET; ajustar a '0 10 * * 1-5' si se prefiere EDT exacto
+    - cron: '0 11 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      days_back:
+        description: 'Días hacia atrás a extraer (default: 2)'
+        required: false
+        default: '2'
+      dry_run:
+        description: 'Dry run: extrae pero NO envía al SaaS'
+        required: false
+        type: boolean
+        default: false
+
+# ─── Globals ───────────────────────────────────────────────────────────────────
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.11'
+  DAYS_BACK: ${{ github.event.inputs.days_back || '2' }}
+
+# ─── Jobs (secuenciales para respetar límites de Supabase free tier) ───────────
+jobs:
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  sync-florida:
+    name: "🌊 FL — ArcGIS Hillsborough"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Extract & sync FL leads
+        env:
+          SAAS_API_URL:        ${{ secrets.SAAS_API_URL }}
+          SAAS_API_KEY:        ${{ secrets.SAAS_API_KEY }}
+          SAAS_SCRAPER_SOURCE: github-actions-fl
+          # Dry run: no enviar al SaaS si se activó manualmente con dry_run=true
+          SAAS_DRY_RUN:        ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          echo "=== FL SCRAPER — days_back=${{ env.DAYS_BACK }} ==="
+          node scripts/run_diamond_leads.js \
+            --days=${{ env.DAYS_BACK }} \
+            --max=500 \
+            --top=10
+
+      - name: Upload FL output artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fl-leads-${{ github.run_id }}
+          path: |
+            output/leads_florida_*.csv
+            output/leads_florida_*.json
+            output/raw_diamond_*.json
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  sync-georgia:
+    name: "🍑 GA — Accela ACA + Tyler EnerGov"
+    runs-on: ubuntu-latest
+    needs: sync-florida
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      # Los drivers de GA (accela_driver.js, energov_driver.js) usan Puppeteer.
+      # ubuntu-latest incluye google-chrome-stable — no hay que descargar Chromium.
+      - name: Verify Chrome for Puppeteer
+        run: |
+          CHROME=$(which google-chrome-stable || which google-chrome || echo "NOT_FOUND")
+          echo "Chrome path: $CHROME"
+          $CHROME --version
+
+      - name: Extract & sync GA leads
+        env:
+          SAAS_API_URL:                   ${{ secrets.SAAS_API_URL }}
+          SAAS_API_KEY:                   ${{ secrets.SAAS_API_KEY }}
+          SAAS_SCRAPER_SOURCE:            github-actions-ga
+          SAAS_DRY_RUN:                   ${{ github.event.inputs.dry_run || 'false' }}
+          # Puppeteer: usar Chrome del sistema en lugar de descargar Chromium
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
+          PUPPETEER_EXECUTABLE_PATH:        /usr/bin/google-chrome-stable
+        run: |
+          echo "=== GA SCRAPER — days_back=${{ env.DAYS_BACK }} ==="
+          python scripts/leads_atlanta_premium.py \
+            --days=${{ env.DAYS_BACK }} \
+            --max=500
+
+      - name: Upload GA output artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ga-leads-${{ github.run_id }}
+          path: |
+            output/leads_atlanta_*.csv
+            output/leads_atlanta_*.json
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  sync-illinois:
+    name: "🏙️ IL — Chicago Data Portal (Cook County)"
+    runs-on: ubuntu-latest
+    needs: sync-georgia
+
+    # NOTA: extract_chicago.js actualmente genera datos demo hasta que se implemente
+    # la integración real con Chicago Data Portal (Socrata API / data.cityofchicago.org).
+    # Ver CLAUDE.md — Regla de Oro #1 para contexto.
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Extract & sync IL leads
+        env:
+          SAAS_API_URL:        ${{ secrets.SAAS_API_URL }}
+          SAAS_API_KEY:        ${{ secrets.SAAS_API_KEY }}
+          SAAS_SCRAPER_SOURCE: github-actions-il
+          SAAS_DRY_RUN:        ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          echo "=== IL SCRAPER ==="
+          node scripts/extract_chicago.js
+
+      - name: Upload IL output artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: il-leads-${{ github.run_id }}
+          path: |
+            output/leads_chicago_*.csv
+            output/leads_chicago_*.json
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  summary:
+    name: "📊 Resumen del sync"
+    runs-on: ubuntu-latest
+    needs: [sync-florida, sync-georgia, sync-illinois]
+    if: always()
+
+    steps:
+      - name: Build job summary
+        run: |
+          echo "## MultiVenza Daily Lead Sync — $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Estado | Job |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| ${{ needs.sync-florida.result == 'success' && '✅' || '❌' }} | Florida (ArcGIS Hillsborough) |" >> $GITHUB_STEP_SUMMARY
+          echo "| ${{ needs.sync-georgia.result == 'success' && '✅' || '❌' }} | Georgia (Accela ACA + EnerGov) |" >> $GITHUB_STEP_SUMMARY
+          echo "| ${{ needs.sync-illinois.result == 'success' && '✅' || '❌' }} | Illinois (Chicago Data Portal) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Destino:** \`${{ secrets.SAAS_API_URL }}/api/sync\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Días extraídos:** ${{ env.DAYS_BACK }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** \`${{ github.event_name }}\` — Run [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY

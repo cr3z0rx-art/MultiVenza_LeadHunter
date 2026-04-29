@@ -1,0 +1,41 @@
+node_modules/
+
+# Environment — NEVER commit secrets
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Next.js build artifacts
+saas/.next/
+saas/out/
+saas/public/sw.js
+saas/public/sw.js.map
+saas/public/workbox-*.js
+saas/public/swe-worker-*.js
+
+# Vercel
+.vercel
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp / debug
+.tmp/
+*.log
+
+# Output lead data — sensitive (addresses, owner names, phones)
+output/
+consolidated_leads.json
+consolidated_leads_clean.json
+
+# IDE / personal
+.vscode/
+.clinerules

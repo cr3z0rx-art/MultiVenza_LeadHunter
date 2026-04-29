@@ -1,0 +1,81 @@
+{
+    "project": "MultiVenza LeadHunter - Atlanta Premium",
+    "version": "1.0.0",
+    "region": {
+        "name": "Georgia",
+        "counties": [
+            "Fulton",
+            "Gwinnett"
+        ],
+        "state": "GA",
+        "targetCities": [
+            "Atlanta",
+            "Alpharetta",
+            "Sandy Springs",
+            "Marietta",
+            "Lawrenceville",
+            "Duluth",
+            "Decatur"
+        ]
+    },
+    "extraction": {
+        "sources": {
+            "Fulton": {
+                "driver": "accela",
+                "url": "https://aca-prod.accela.com/ATLANTA_GA/Default.aspx",
+                "maxItems": 500
+            },
+            "Gwinnett": {
+                "driver": "energov",
+                "url": "https://gwinnettcounty-energovpub.tylerhost.net/apps/selfservice#/search",
+                "maxItems": 500
+            }
+        },
+        "fallbackToStub": false,
+        "historyExtraction": true,
+        "maxDays": 30
+    },
+    "filters": {
+        "ironFilter": {
+            "enabled": true,
+            "description": "Filtro de Hierro: Descarta automáticamente cualquier permiso por debajo de $15,000",
+            "thresholdValuation": 15000
+        },
+        "priorityNiches": {
+            "enabled": true,
+            "keywords": [
+                "NEW CONSTRUCTION",
+                "ADDITION",
+                "RE-ROOF",
+                "REROOF",
+                "TOTAL REROOF",
+                "BASEMENT FINISH",
+                "INTERIOR REMODEL"
+            ],
+            "tag": "HIGH-TICKET"
+        },
+        "contractorHistory": {
+            "enabled": true,
+            "description": "Extrae historial de contratistas para optimizar uso de créditos",
+            "minProjects": 3
+        }
+    },
+    "financials": {
+        "netProfitRate": 0.35,
+        "description": "35% commission on estimated contract value"
+    },
+    "output": {
+        "directory": "./output",
+        "formats": [
+            "json",
+            "csv"
+        ],
+        "filePrefix": "leads_atlanta_premium",
+        "includeContractorHistory": true
+    },
+    "dashboard": {
+        "highlightTag": "HIGH-TICKET",
+        "cssClass": "high-ticket-lead",
+        "description": "Leads de alto valor en Georgia (>$15k) en nichos prioritarios"
+    }
+}

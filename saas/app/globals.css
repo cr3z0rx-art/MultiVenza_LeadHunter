@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-navy-800 box-border;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-navy-950 text-white antialiased;
+    font-feature-settings: 'ss01', 'ss02', 'cv01';
+  }
+
+  /* Premium scrollbar */
+  ::-webkit-scrollbar       { width: 3px; height: 3px; }
+  ::-webkit-scrollbar-track { @apply bg-navy-950; }
+  ::-webkit-scrollbar-thumb { @apply bg-navy-700 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-navy-600; }
+}
+
+@layer utilities {
+  /* Gold shimmer overlay — applied as absolute child, clip with overflow-hidden on parent */
+  .shimmer-gold {
+    background: linear-gradient(
+      105deg,
+      transparent 35%,
+      rgba(201, 169, 97, 0.75) 50%,
+      transparent 65%
+    );
+    background-size: 200% 100%;
+    animation: shimmer-move 3s linear infinite;
+  }
+
+  /* Blur + grayscale placeholder for locked protected fields */
+  .field-locked {
+    filter: blur(5px) grayscale(0.3);
+    user-select: none;
+    pointer-events: none;
+  }
+
+  /* Safe area for iPhone notch / home bar */
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pt-safe { padding-top:    env(safe-area-inset-top);    }
+}
+
+/* ── Keyframes (used via inline style or @layer utilities) ── */
+
+@keyframes shimmer-move {
+  0%   { transform: translateX(-150%); }
+  100% { transform: translateX(150%); }
+}
+
+@keyframes glow-gold {
+  0% {
+    box-shadow:
+      0 0  8px rgba(201,169,97,0.20),
+      0 0 16px rgba(201,169,97,0.08),
+      inset 0 1px 0 rgba(201,169,97,0.06);
+  }
+  100% {
+    box-shadow:
+      0 0 24px rgba(201,169,97,0.55),
+      0 0 48px rgba(201,169,97,0.28),
+      0 0 96px rgba(201,169,97,0.12),
+      inset 0 1px 0 rgba(201,169,97,0.12);
+  }
+}
+
+/* Animated gradient border for Diamond cards */
+@keyframes border-rotate {
+  0%   { background-position: 0%   50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0%   50%; }
+}
