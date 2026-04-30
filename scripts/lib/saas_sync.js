@@ -246,4 +246,11 @@ async function syncILLeads(leads, batchId) {
   return _sync(valid.map(_mapILLead), 'IL', batchId);
 }
 
-module.exports = { syncFLLeads, syncILLeads };
+/**
+ * Sincroniza leads FL procesados a Supabase (alias de syncFLLeads).
+ */
+async function syncToSupabase(leads, batchId) {
+  return syncFLLeads(leads, batchId);
+}
+
+module.exports = { syncFLLeads, syncILLeads, syncToSupabase };

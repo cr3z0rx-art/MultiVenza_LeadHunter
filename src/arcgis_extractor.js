@@ -39,6 +39,36 @@ const ARCGIS_SOURCES = {
     ],
     // Field containing dollar valuation
     valuationField: 'Value',
+    typeField: 'TYPE',
+    dateField: 'ISSUED_DATE',
+    outFields: 'PERMIT__,TYPE,ISSUED_DATE,ADDRESS,CITY,Value,DESCRIPTION,STATUS,PARCEL',
+  },
+  'Miami-Dade': {
+    baseUrl: 'https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/miamidade_permit_data/FeatureServer/0',
+    county: 'Miami-Dade',
+    permitTypes: ['BLDG', 'ELEC', 'MECH'],
+    valuationField: 'EstimatedValue',
+    typeField: 'PermitType',
+    dateField: 'PermitIssuedDate',
+    outFields: 'PermitNumber,PermitType,PermitIssuedDate,PropertyAddress,City,EstimatedValue,ApplicationTypeDescription,OwnerName,ContractorName',
+  },
+  'Orange': {
+    baseUrl: 'https://services.arcgis.com/OrangeFL/arcgis/rest/services/Fast_Track_Permits/FeatureServer/0',
+    county: 'Orange County',
+    permitTypes: ['BLDG', 'ELEC', 'MECH'],
+    typeField: 'TYPE', dateField: 'ISSUED_DATE', outFields: '*'
+  },
+  'Palm Beach': {
+    baseUrl: 'https://services.arcgis.com/PalmBeachFL/arcgis/rest/services/PZB_Permits/FeatureServer/0',
+    county: 'Palm Beach',
+    permitTypes: ['BLDG', 'ELEC', 'MECH'],
+    typeField: 'TYPE', dateField: 'ISSUED_DATE', outFields: '*'
+  },
+  'Fulton': {
+    baseUrl: 'https://services.arcgis.com/AtlantaGA/arcgis/rest/services/Building_Permits/FeatureServer/0',
+    county: 'Fulton',
+    permitTypes: ['BLDG', 'ELEC', 'MECH'],
+    typeField: 'TYPE', dateField: 'ISSUED_DATE', outFields: '*'
   },
 };
 
@@ -175,32 +205,53 @@ function _parseDate(epochMs) {
   return new Date(epochMs).toISOString().slice(0, 10);
 }
 
-/**
- * Map an ArcGIS Hillsborough feature → RawPermit shape.
- * Note: The ArcGIS layer has no contractor field — all permits are No-GC candidates.
- */
-function _mapHillsboroughFeature(feature) {
+function _mapFeature(feature, source) {
   const a = feature.attributes;
+
+  if (source.county === 'Miami-Dade') {
+    const { city, zip } = _parseCity(a.City);
+    const typeDesc = [a.PermitType, a.ApplicationTypeDescription].filter(Boolean).join(' ').trim();
+    const val = parseFloat(a.EstimatedValue) || 0;
+    return {
+      permitNumber:   a.PermitNumber || `MD-UNKNOWN-${Date.now()}`,
+      permitType:     typeDesc,
+      permitDate:     _parseDate(a.PermitIssuedDate),
+      status:         'Issued',
+      address:        a.PropertyAddress || '',
+      city,
+      county:         'Miami-Dade',
+      zip,
+      ownerName:      a.OwnerName || null,
+      contractorName: a.ContractorName || null,
+      contractorLic:  null,
+      valuation:      val,
+      roofYear:       null,
+      source:         'Miami-Dade ArcGIS',
+      tier:           'STANDARD',
+      tags:           [],
+    };
+  }
+
   const { city, zip } = _parseCity(a.CITY);
 
   // Combine TYPE + DESCRIPTION for richer keyword matching in processor
   const typeDesc = [a.TYPE, a.DESCRIPTION].filter(Boolean).join(' ').trim();
 
   return {
-    permitNumber:   a.PERMIT__ || `HC-UNKNOWN-${Date.now()}`,
+    permitNumber:   a.PERMIT__ || `${source.county}-UNKNOWN-${Date.now()}`,
     permitType:     typeDesc,
     permitDate:     _parseDate(a.ISSUED_DATE),
     status:         a.STATUS || 'Issued',
     address:        a.ADDRESS || '',
     city,
-    county:         'Hillsborough',
+    county:         source.county || 'Unknown',
     zip,
     ownerName:      null,        // not in ArcGIS layer
     contractorName: null,        // not in ArcGIS layer → processor flags as No-GC
     contractorLic:  null,
     valuation:      typeof a.Value === 'number' ? a.Value : 0,
     roofYear:       null,        // derive from permitDate in roof rules
-    source:         'Hillsborough County ArcGIS (AccelaDashBoard)',
+    source:         `${source.county} ArcGIS`,
     tier:           'STANDARD',  // processor will re-classify by city
     tags:           [],
   };
@@ -229,7 +280,7 @@ class ArcGISExtractor {
   async run(opts = {}) {
     const {
       counties         = ['Hillsborough', 'Sarasota'],
-      daysBack         = 30,
+      daysBack         = 3,
       maxRecords       = 200,
       sarasotaDemoMode = true,
     } = opts;
@@ -287,18 +338,21 @@ class ArcGISExtractor {
     sinceDate.setDate(sinceDate.getDate() - daysBack);
     const dateStr = sinceDate.toISOString().slice(0, 10);  // "YYYY-MM-DD"
 
+    const typeField = source.typeField || 'TYPE';
+    const dateField = source.dateField || 'ISSUED_DATE';
+
     const typeList = source.permitTypes.map(t => `'${t}'`).join(',');
-    const where    = `TYPE IN (${typeList}) AND ISSUED_DATE >= date '${dateStr}'`;
+    const where    = `${typeField} IN (${typeList}) AND ${dateField} >= date '${dateStr}'`;
 
     this.logger.debug(`${source.county} query: ${where}`);
 
-    const features = await this._paginateQuery(source.baseUrl, where, maxRecords);
-    return features.map(_mapHillsboroughFeature);
+    const features = await this._paginateQuery(source.baseUrl, where, maxRecords, source.outFields, dateField);
+    return features.map(f => _mapFeature(f, source));
   }
 
   // ─── Pagination (ArcGIS max 2000 per call) ──────────────────────────────────
 
-  async _paginateQuery(baseUrl, where, maxRecords) {
+  async _paginateQuery(baseUrl, where, maxRecords, outFields, dateField) {
     const pageSize = Math.min(maxRecords, 1000);
     const allFeatures = [];
     let offset = 0;
@@ -307,10 +361,10 @@ class ArcGISExtractor {
       const remaining = maxRecords - allFeatures.length;
       const postData  = _buildPostData({
         where,
-        outFields:         'PERMIT__,TYPE,ISSUED_DATE,ADDRESS,CITY,Value,DESCRIPTION,STATUS,PARCEL',
+        outFields:         outFields || '*',
         resultRecordCount: Math.min(pageSize, remaining),
         resultOffset:      offset,
-        orderByFields:     'ISSUED_DATE DESC',
+        orderByFields:     `${dateField || 'ISSUED_DATE'} DESC`,
         f:                 'json',
       });
 

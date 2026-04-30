@@ -118,6 +118,16 @@ class Processor {
       return null;
     }
 
+    // 0.5 Keyword filter
+    if (this.filters.keywordFilter?.enabled) {
+      const typeStr = (record.permitType || '').toUpperCase();
+      const hasMatch = this.filters.keywordFilter.allowed.some(kw => typeStr.includes(kw));
+      if (!hasMatch) return null;
+    }
+
+    // Hard Filter No-GC
+    if (record.contractorName) return null;
+
     // 1. Status filter
     if (!this._passesStatusFilter(record.status)) {
       return null;

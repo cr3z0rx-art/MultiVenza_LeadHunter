@@ -119,6 +119,10 @@
     "cityFilter": {
       "enabled": true,
       "description": "Only process permits from targetCities. Records from outside the list are dropped."
+    },
+    "keywordFilter": {
+      "enabled": true,
+      "allowed": ["ROOF", "HVAC", "ELECTRICAL", "CGC"]
     }
   },
 

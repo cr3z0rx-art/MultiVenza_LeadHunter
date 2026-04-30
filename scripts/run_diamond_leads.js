@@ -28,7 +28,7 @@ const config          = require('../config.json');
 const ArcGISExtractor = require('../src/arcgis_extractor');
 const Processor       = require('../src/processor');
 const Logger          = require('../src/utils/logger');
-const { syncFLLeads } = require('./lib/saas_sync');
+const { syncFLLeads, syncToSupabase } = require('./lib/saas_sync');
 
 // ─── Parse CLI args ────────────────────────────────────────────────────────
 
@@ -37,7 +37,7 @@ function argVal(flag, defaultVal) {
   return arg ? parseInt(arg.split('=')[1], 10) : defaultVal;
 }
 
-const DAYS    = argVal('days', 30);
+const DAYS    = argVal('days', 3);
 const MAX     = argVal('max',  200);
 const TOP     = argVal('top',   50);
 
@@ -68,7 +68,7 @@ async function main() {
   // ── 1. Extract ─────────────────────────────────────────────────────────────
   const extractor = new ArcGISExtractor(config);
   const rawRecords = await extractor.run({
-    counties:         ['Hillsborough', 'Sarasota'],
+    counties:         ['Hillsborough', 'Sarasota', 'Miami-Dade', 'Orange', 'Palm Beach', 'Fulton'],
     daysBack:         DAYS,
     maxRecords:       MAX,
     sarasotaDemoMode: true,
@@ -90,8 +90,9 @@ async function main() {
   const processor = new Processor(config);
   const { leads, stats } = await processor.run(rawRecords);
 
-  // ── 3b. Sync to SaaS API ───────────────────────────────────────────────────
+  // ── 3b. Sync to SaaS API & Supabase ────────────────────────────────────────
   await syncFLLeads(leads, `FL-${ts}`);
+  if (typeof syncToSupabase === 'function') { await syncToSupabase(leads, `FL-${ts}`); }
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
