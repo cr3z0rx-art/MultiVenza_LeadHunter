@@ -5,15 +5,17 @@ import { Menu } from 'lucide-react'
 import { LeadFilters } from '@/components/leads/LeadFilters'
 import { LeadFeed } from '@/components/leads/LeadFeed'
 import type { Lead, LeadFilters as Filters } from '@/lib/types/lead'
+import type { DailyStats } from '@/app/actions'
 
 interface DashboardShellProps {
   filters:      Filters
   initialLeads: Lead[]
   totalCount:   number
   pageSize:     number
+  dailyStats:   DailyStats
 }
 
-export function DashboardShell({ filters, initialLeads, totalCount, pageSize }: DashboardShellProps) {
+export function DashboardShell({ filters, initialLeads, totalCount, pageSize, dailyStats }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
@@ -22,7 +24,7 @@ export function DashboardShell({ filters, initialLeads, totalCount, pageSize }: 
       {/* ── Desktop sidebar ───────────────────────────────────────────────────── */}
       <aside className="hidden lg:block sticky top-[57px] self-start h-[calc(100vh-57px)] overflow-y-auto w-72 flex-shrink-0 border-r border-navy-800">
         <div className="p-5">
-          <LeadFilters activeFilters={filters} totalCount={totalCount} />
+          <LeadFilters activeFilters={filters} totalCount={totalCount} dailyStats={dailyStats} />
         </div>
       </aside>
 
@@ -38,6 +40,7 @@ export function DashboardShell({ filters, initialLeads, totalCount, pageSize }: 
               <LeadFilters
                 activeFilters={filters}
                 totalCount={totalCount}
+                dailyStats={dailyStats}
                 onClose={() => setSidebarOpen(false)}
               />
             </div>

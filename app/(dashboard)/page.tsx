@@ -1,5 +1,5 @@
 import { DashboardShell } from '@/components/layout/DashboardShell'
-import { fetchLeads } from '@/app/actions'
+import { fetchLeads, fetchDailyStats } from '@/app/actions'
 import type { LeadFilters as Filters, LeadTier, LeadState, ProjectType } from '@/lib/types/lead'
 
 interface PageProps {
@@ -25,7 +25,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     no_gc_only:    searchParams.no_gc === 'true',
   }
 
-  const { leads: initialLeads, count } = await fetchLeads(filters, 0, PAGE_SIZE - 1)
+  const [{ leads: initialLeads, count }, dailyStats] = await Promise.all([
+    fetchLeads(filters, 0, PAGE_SIZE - 1),
+    fetchDailyStats(),
+  ])
 
   return (
     <DashboardShell
@@ -33,6 +36,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       initialLeads={initialLeads}
       totalCount={count}
       pageSize={PAGE_SIZE}
+      dailyStats={dailyStats}
     />
   )
 }

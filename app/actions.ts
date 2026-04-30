@@ -4,6 +4,30 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { Lead, LeadFilters } from '@/lib/types/lead'
 import { toFrontendLead } from '@/lib/utils/lead-mapper'
 
+export interface DailyStats {
+  tpv24h:    number
+  count24h:  number
+  profit24h: number
+}
+
+export async function fetchDailyStats(): Promise<DailyStats> {
+  const supabase = createAdminClient()
+  const cutoff   = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+  const { data, error } = await supabase
+    .from('leads')
+    .select('estimated_valuation, projected_profit')
+    .gte('created_at', cutoff)
+
+  if (error || !data) return { tpv24h: 0, count24h: 0, profit24h: 0 }
+
+  return {
+    tpv24h:    data.reduce((s, r) => s + (r.estimated_valuation ?? 0), 0),
+    profit24h: data.reduce((s, r) => s + (r.projected_profit    ?? 0), 0),
+    count24h:  data.length,
+  }
+}
+
 export async function fetchLeads(
   filters: LeadFilters,
   from: number,

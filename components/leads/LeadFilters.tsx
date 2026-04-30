@@ -2,14 +2,22 @@
 
 import { useRouter, usePathname } from 'next/navigation'
 import { useCallback } from 'react'
-import { SlidersHorizontal, X } from 'lucide-react'
+import { SlidersHorizontal, X, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { LeadFilters, LeadState, LeadTier, ProjectType } from '@/lib/types/lead'
+import type { DailyStats } from '@/app/actions'
 
 interface LeadFiltersProps {
   activeFilters: LeadFilters
   totalCount:    number
+  dailyStats:    DailyStats
   onClose?:      () => void
+}
+
+function formatCompact(n: number): string {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`
+  if (n >= 1_000)     return `$${Math.round(n / 1_000)}k`
+  return `$${n.toLocaleString()}`
 }
 
 type Opt<T> = { value: T; label: string }
@@ -46,7 +54,7 @@ const VALUATIONS = [
   { label: '>$250k', min: 250_000   },
 ]
 
-export function LeadFilters({ activeFilters, totalCount, onClose }: LeadFiltersProps) {
+export function LeadFilters({ activeFilters, totalCount, dailyStats, onClose }: LeadFiltersProps) {
   const router   = useRouter()
   const pathname = usePathname()
 
@@ -69,6 +77,36 @@ export function LeadFilters({ activeFilters, totalCount, onClose }: LeadFiltersP
 
   return (
     <section className="space-y-3">
+
+      {/* ── Pipeline 24h stat card ─────────────────────────────────────────── */}
+      <div
+        className="rounded-xl p-3.5 border mb-1"
+        style={{
+          background:   'linear-gradient(135deg, rgba(0,212,232,0.07) 0%, rgba(13,20,32,0.9) 60%)',
+          borderColor:  'rgba(0,212,232,0.22)',
+          boxShadow:    '0 0 18px rgba(0,212,232,0.08), inset 0 1px 0 rgba(0,212,232,0.08)',
+        }}
+      >
+        <div className="flex items-center gap-1.5 mb-2">
+          <TrendingUp className="w-3.5 h-3.5" style={{ color: '#00D4E8' }} />
+          <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: '#00D4E8' }}>
+            Pipeline · Últimas 24h
+          </span>
+        </div>
+
+        <div className="tabular-nums font-extrabold text-2xl leading-none tracking-tight text-white mb-0.5">
+          {formatCompact(dailyStats.tpv24h)}
+        </div>
+        <div className="text-[11px] text-slate-500">
+          TPV &nbsp;·&nbsp;
+          <span className="text-emerald-400 font-medium">{formatCompact(dailyStats.profit24h)}</span>
+          {' '}net profit
+        </div>
+        <div className="mt-2 pt-2 border-t border-navy-700 text-[11px] text-slate-600">
+          {dailyStats.count24h} lead{dailyStats.count24h !== 1 ? 's' : ''} ingresados
+        </div>
+      </div>
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
