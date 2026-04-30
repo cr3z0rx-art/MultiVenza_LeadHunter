@@ -2,15 +2,15 @@ import type { Lead, LeadTier, LeadState, ProjectType, RoofClass } from '@/lib/ty
 
 function computeScore(tier: LeadTier, valuation: number): number {
   let score = 10
-  if (tier === 'diamond') score += 55
-  else if (tier === 'premium') score += 30
+  if (tier === 'diamante') score += 55
+  else if (tier === 'oro') score += 30
   if (valuation >= 250_000) score += 20
   else if (valuation >= 50_000) score += 10
   return Math.min(score, 100)
 }
 
 export function toFrontendLead(row: Record<string, unknown>): Lead {
-  const tier      = (row.tier as LeadTier) ?? 'standard'
+  const tier      = (row.tier as LeadTier) ?? 'plata'
   const valuation = (row.estimated_valuation as number) ?? 0
 
   return {

@@ -22,7 +22,7 @@ export default function manifest(): MetadataRoute.Manifest {
       {
         name: 'Leads Diamante',
         short_name: 'Diamante',
-        url: '/?tier=diamond',
+        url: '/?tier=diamante',
         description: 'Ver leads de mayor valor',
         icons: [{ src: '/icons/icon-96x96.png', sizes: '96x96' }],
       },
