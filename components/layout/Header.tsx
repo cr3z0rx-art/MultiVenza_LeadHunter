@@ -30,7 +30,7 @@ export function Header() {
             style={{ background: 'rgba(13,20,32,0.7)', borderColor: 'rgba(0,212,232,0.12)' }}
           >
             <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full ring-1" style={{ background: '#00D4E8', ringColor: '#080D14' }} />
+            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full" style={{ background: '#00D4E8', boxShadow: '0 0 0 1px #080D14' }} />
           </button>
 
           <button
