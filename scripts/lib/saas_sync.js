@@ -68,7 +68,6 @@ function _mapFLLead(lead, sourceState) {
     project_type:        _FL_CATEGORY_MAP[lead.category] || 'Remodel',
     estimated_valuation: tpv,
     tier:                lead.tier ? lead.tier.toLowerCase() : _tier(tpv),
-    projected_profit:    lead.projectValue?.estNetProfit ?? (tpv > 70000 ? 500 : tpv >= 30000 ? 250 : 125),
     score:               lead.score        ?? 0,
     tags:                lead.tags         ?? [],
     no_gc:               lead.flags?.noGC  ?? false,

@@ -66,10 +66,10 @@ export async function POST(req: NextRequest) {
       processed_at:        l.processed_at        ?? new Date().toISOString(),
     }))
 
+    console.log('--- UPSERT CHUNK ---', JSON.stringify(chunk[0], null, 2));
     const { data, error } = await supabase
       .from('leads')
       .upsert(chunk, { onConflict: 'permit_number', ignoreDuplicates: false })
-      .select('id')
 
     if (error) {
       result.errors.push(`chunk ${Math.floor(i / CHUNK_SIZE)}: ${error.message}`)
