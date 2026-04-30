@@ -26,7 +26,7 @@ export async function fetchDailyStats(): Promise<DailyStats> {
 
 export async function fetchHotLeads(): Promise<Lead[]> {
   const supabase = createAdminClient()
-  const cutoff   = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const cutoff   = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
 
   let { data, error } = await supabase
     .from('leads')
@@ -55,12 +55,12 @@ export async function fetchLeads(
 ): Promise<{ leads: Lead[]; count: number }> {
   const supabase = createAdminClient()
 
-  const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const cutoff60d = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
 
   let q = supabase
     .from('leads')
     .select('*', { count: 'exact' })
-    .gte('permit_date', cutoff30d) // Filtro estricto de 30 días para HotRadar
+    .gte('permit_date', cutoff60d) // Filtro estricto de 60 días para HotRadar
     .order('estimated_valuation', { ascending: false })
     .order('created_at',          { ascending: false })
     .range(from, to)
