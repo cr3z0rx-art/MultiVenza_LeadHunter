@@ -26,13 +26,13 @@ export async function fetchDailyStats(): Promise<DailyStats> {
 
 export async function fetchHotLeads(): Promise<Lead[]> {
   const supabase = createAdminClient()
-  const cutoff   = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
+  const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
   let { data, error } = await supabase
     .from('leads')
     .select('*')
     .gte('permit_date', cutoff)
-    .order('projected_profit', { ascending: false })
+    .order('estimated_valuation', { ascending: false })
     .limit(5)
 
   if (error || !data?.length) {
@@ -40,7 +40,7 @@ export async function fetchHotLeads(): Promise<Lead[]> {
       .from('leads')
       .select('*')
       .gte('created_at', cutoff) // Fallback to created_at if permit_date fails
-      .order('projected_profit', { ascending: false })
+      .order('estimated_valuation', { ascending: false })
       .limit(5)
     data = fallback.data
   }
@@ -55,12 +55,12 @@ export async function fetchLeads(
 ): Promise<{ leads: Lead[]; count: number }> {
   const supabase = createAdminClient()
 
-  const cutoff60d = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
+  const cutoff90d = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
   let q = supabase
     .from('leads')
     .select('*', { count: 'exact' })
-    .gte('permit_date', cutoff60d) // Filtro estricto de 60 días para HotRadar
+    .gte('permit_date', cutoff90d) // Ventana de 90 días para HotRadar
     .order('estimated_valuation', { ascending: false })
     .order('created_at',          { ascending: false })
     .range(from, to)
@@ -74,6 +74,8 @@ export async function fetchLeads(
   if (filters.no_gc_only)    q = q.eq('no_gc', true)
 
   const { data, count, error } = await q
+
+  console.log(`[fetchLeads] Filters:`, JSON.stringify(filters), `| Found: ${count} | Errors: ${error?.message || 'none'}`)
 
   if (error) {
     console.error('[fetchLeads]', error.message)
