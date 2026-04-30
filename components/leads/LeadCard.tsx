@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Lock, Unlock, MapPin, User, Phone, Calendar,
@@ -14,26 +15,26 @@ interface LeadCardProps {
 }
 
 const TIER = {
-  diamond: {
+  diamante: {
     label:     'DIAMANTE',
-    badge:     'bg-gold-500/15 text-gold-400 border border-gold-500/40',
-    accent:    'from-gold-700 via-gold-500 to-gold-700',
-    score:     'bg-gold-500/15 border-gold-500/30 text-gold-400',
-    unlockBtn: 'bg-gradient-to-r from-gold-600 to-gold-500 hover:from-gold-500 hover:to-gold-400 text-navy-950 shadow-lg',
-    lockIcon:  'bg-gold-500/15 border-gold-500/30 text-gold-400',
+    badge:     'bg-violet-500/15 text-violet-400 border border-violet-500/40',
+    accent:    'from-violet-700 via-violet-500 to-violet-700',
+    score:     'bg-violet-500/15 border-violet-500/30 text-violet-400',
+    unlockBtn: 'bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 text-white shadow-lg',
+    lockIcon:  'bg-violet-500/15 border-violet-500/30 text-violet-400',
     glow:      true,
   },
-  premium: {
-    label:     'PREMIUM',
-    badge:     'bg-blue-500/15 text-blue-400 border border-blue-500/30',
-    accent:    'from-blue-800 via-blue-600 to-blue-800',
-    score:     'bg-blue-500/15 border-blue-500/30 text-blue-400',
-    unlockBtn: 'bg-gradient-to-r from-blue-700 to-blue-600 hover:from-blue-600 hover:to-blue-500 text-white',
+  oro: {
+    label:     'ORO',
+    badge:     'bg-gold-500/15 text-gold-400 border border-gold-500/30',
+    accent:    'from-gold-600 via-gold-500 to-gold-600',
+    score:     'bg-gold-500/15 border-gold-500/30 text-gold-400',
+    unlockBtn: 'bg-gradient-to-r from-gold-600 to-gold-500 hover:from-gold-500 hover:to-gold-400 text-navy-950',
     lockIcon:  'bg-navy-800 border-navy-600 text-slate-400',
     glow:      false,
   },
-  standard: {
-    label:     'STANDARD',
+  plata: {
+    label:     'PLATA',
     badge:     'bg-slate-700/40 text-slate-400 border border-slate-700/60',
     accent:    'from-navy-800 via-navy-700 to-navy-800',
     score:     'bg-navy-900 border-navy-700 text-slate-300',
@@ -46,6 +47,31 @@ const TIER = {
 export function LeadCard({ lead, onUnlock }: LeadCardProps) {
   const t = TIER[lead.tier]
   const days = daysAgo(lead.permit_date)
+  const [isFetchingPhone, setIsFetchingPhone] = useState(false)
+
+  const handleUnlockPhone = async () => {
+    if (!confirm('¿Estás seguro de que deseas gastar un crédito premium para obtener el teléfono de este lead con BatchData?')) return
+    
+    setIsFetchingPhone(true)
+    try {
+      const res = await fetch('/api/leads/unlock-phone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: lead.id }),
+      })
+      
+      if (res.ok) {
+        window.location.reload()
+      } else {
+        const err = await res.json()
+        alert(`Error: ${err.error || 'No se pudo obtener el teléfono'}`)
+      }
+    } catch (e) {
+      alert('Error de conexión al intentar obtener el teléfono.')
+    } finally {
+      setIsFetchingPhone(false)
+    }
+  }
 
   return (
     <motion.article
@@ -131,7 +157,7 @@ export function LeadCard({ lead, onUnlock }: LeadCardProps) {
             </div>
             <span className={cn(
               'text-sm font-bold tabular-nums',
-              lead.tier === 'diamond' ? 'text-gold-400' : 'text-white',
+              lead.tier === 'diamante' ? 'text-violet-400' : lead.tier === 'oro' ? 'text-gold-400' : 'text-white',
             )}>
               {formatCurrency(lead.estimated_valuation)}
             </span>
@@ -140,10 +166,10 @@ export function LeadCard({ lead, onUnlock }: LeadCardProps) {
           <div className="bg-navy-900/60 rounded-lg p-2.5 border border-navy-700/50">
             <div className="flex items-center gap-1 mb-0.5">
               <TrendingUp className="w-2.5 h-2.5 text-emerald-600" />
-              <span className="text-slate-600 text-[9px] uppercase tracking-wider">Net Profit 35%</span>
+              <span className="text-slate-600 text-[9px] uppercase tracking-wider">Precio Lead</span>
             </div>
             <span className="text-sm font-bold text-emerald-400 tabular-nums">
-              {formatCurrency(lead.projected_profit)}
+              ${lead.projected_profit || (lead.tier === 'diamante' ? 500 : lead.tier === 'oro' ? 250 : 125)}
             </span>
           </div>
         </div>
@@ -222,11 +248,29 @@ export function LeadCard({ lead, onUnlock }: LeadCardProps) {
 
         {/* ── UNLOCK / UNLOCKED CTA ─────────────────────────────────────────── */}
         {lead.is_unlocked ? (
-          <div className="flex items-center justify-center gap-1.5 py-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-emerald-400 text-[11px] font-semibold">
-              Lead desbloqueado {lead.unlocked_at ? `· ${formatDate(lead.unlocked_at)}` : ''}
-            </span>
+          <div className="flex flex-col gap-3 pt-1">
+            <div className="flex items-center justify-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-emerald-400 text-[11px] font-semibold">
+                Lead desbloqueado {lead.unlocked_at ? `· ${formatDate(lead.unlocked_at)}` : ''}
+              </span>
+            </div>
+            
+            {!lead.phone && (
+              <button
+                onClick={handleUnlockPhone}
+                disabled={isFetchingPhone}
+                className={cn(
+                  "w-full py-2.5 px-4 rounded-lg font-bold text-xs tracking-wide",
+                  "flex items-center justify-center gap-1.5 transition-all duration-200 shadow-md",
+                  "bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white",
+                  "disabled:opacity-50 disabled:cursor-not-allowed"
+                )}
+              >
+                <Phone className="w-3.5 h-3.5" />
+                {isFetchingPhone ? 'Buscando...' : `Invertir 1 Crédito - Desbloquear Lead de $${lead.projected_profit || (lead.tier === 'diamante' ? 500 : lead.tier === 'oro' ? 250 : 125)}`}
+              </button>
+            )}
           </div>
         ) : (
           <motion.button

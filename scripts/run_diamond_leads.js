@@ -37,7 +37,7 @@ function argVal(flag, defaultVal) {
   return arg ? parseInt(arg.split('=')[1], 10) : defaultVal;
 }
 
-const DAYS    = argVal('days', 3);
+const DAYS    = argVal('days', 30);
 const MAX     = argVal('max',  200);
 const TOP     = argVal('top',   50);
 
@@ -68,7 +68,7 @@ async function main() {
   // ── 1. Extract ─────────────────────────────────────────────────────────────
   const extractor = new ArcGISExtractor(config);
   const rawRecords = await extractor.run({
-    counties:         ['Hillsborough', 'Sarasota', 'Miami-Dade', 'Orange', 'Palm Beach', 'Fulton'],
+    counties:         ['Hillsborough', 'Sarasota', 'Miami-Dade', 'Orange', 'Palm Beach', 'Fulton', 'Broward', 'Pinellas', 'Harris', 'Maricopa'],
     daysBack:         DAYS,
     maxRecords:       MAX,
     sarasotaDemoMode: true,
@@ -88,11 +88,11 @@ async function main() {
 
   // ── 3. Process ─────────────────────────────────────────────────────────────
   const processor = new Processor(config);
-  const { leads, stats } = await processor.run(rawRecords);
+  const { leads, competitors, stats } = await processor.run(rawRecords);
 
   // ── 3b. Sync to SaaS API & Supabase ────────────────────────────────────────
-  await syncFLLeads(leads, `FL-${ts}`);
-  if (typeof syncToSupabase === 'function') { await syncToSupabase(leads, `FL-${ts}`); }
+  await syncFLLeads(leads, competitors, `FL-${ts}`);
+  if (typeof syncToSupabase === 'function') { await syncToSupabase(leads, competitors, `FL-${ts}`); }
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 

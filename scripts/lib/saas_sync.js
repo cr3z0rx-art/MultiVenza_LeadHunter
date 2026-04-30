@@ -33,9 +33,9 @@ const SCRAPER_SOURCE = process.env.SAAS_SCRAPER_SOURCE || 'multivenza-leadhunter
 
 /** Diamond si TPV > $15k (regla del SaaS). */
 function _tier(tpv) {
-  if (tpv > 15_000) return 'diamond';
-  if (tpv > 5_000)  return 'premium';
-  return 'standard';
+  if (tpv > 70_000) return 'diamante';
+  if (tpv >= 30_000) return 'oro';
+  return 'plata';
 }
 
 // ── Mappers ───────────────────────────────────────────────────────────────────
@@ -59,11 +59,12 @@ function _mapFLLead(lead) {
   return {
     city:                lead.city         || '',
     zip_code:            lead.zip          || null,
-    state:               'FL',
+    state:               lead.state        || 'FL',
     county:              lead.county       || null,
     project_type:        _FL_CATEGORY_MAP[lead.category] || 'Remodel',
     estimated_valuation: tpv,
-    tier:                _tier(tpv),
+    tier:                lead.tier ? lead.tier.toLowerCase() : _tier(tpv),
+    projected_profit:    lead.projectValue?.estNetProfit ?? (tpv > 70000 ? 500 : tpv >= 30000 ? 250 : 125),
     score:               lead.score        ?? 0,
     tags:                lead.tags         ?? [],
     no_gc:               lead.flags?.noGC  ?? false,
@@ -180,48 +181,70 @@ function _postJSON(url, body, headers) {
 
 // ── Core sync ─────────────────────────────────────────────────────────────────
 
-async function _sync(mappedLeads, state, batchId) {
+async function _sync(mappedLeads, mappedCompetitors, state, batchId) {
   if (!SAAS_API_URL || !SAAS_API_KEY) {
     console.warn('[saas_sync] ⚠️  SAAS_API_URL o SAAS_API_KEY no configurados — sync omitido');
-    console.warn('            Agrega estas variables a .env para activar la sincronización');
     return null;
   }
 
-  if (!mappedLeads.length) {
-    console.warn(`[saas_sync] No hay leads ${state} para sincronizar`);
+  const leads = mappedLeads || [];
+  const competitors = mappedCompetitors || [];
+
+  if (!leads.length && !competitors.length) {
+    console.warn(`[saas_sync] No hay data ${state} para sincronizar`);
     return null;
   }
 
-  const url     = `${SAAS_API_URL}/api/sync`;
-  const payload = {
-    source_state: state,
-    batch_id:     batchId || `${state}-${new Date().toISOString().slice(0, 10)}`,
-    leads:        mappedLeads,
-  };
+  const url = `${SAAS_API_URL}/api/sync`;
+  const CHUNK_SIZE = 500; // Chunk size to avoid 4.5MB Vercel limit
+  let totalInserted = 0, totalUpdated = 0, totalSkipped = 0;
+  
+  // Calculate max iterations based on largest array
+  const maxIters = Math.max(
+    Math.ceil(leads.length / CHUNK_SIZE),
+    Math.ceil(competitors.length / CHUNK_SIZE)
+  ) || 1;
 
-  console.log(`\n[saas_sync] → Enviando ${mappedLeads.length} leads (${state}) a ${url} ...`);
+  console.log(`\n[saas_sync] → Iniciando envío de ${leads.length} leads y ${competitors.length} competidores (${state}) a ${url} en ${maxIters} lotes...`);
 
-  try {
-    const res = await _postJSON(url, payload, {
-      'x-api-key':        SAAS_API_KEY,
-      'x-scraper-source': SCRAPER_SOURCE,
-    });
+  for (let i = 0; i < maxIters; i++) {
+    const chunkLeads = leads.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+    const chunkCompetitors = competitors.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+    
+    if (!chunkLeads.length && !chunkCompetitors.length) continue;
 
-    if (res.status === 200) {
-      const { inserted = 0, updated = 0, skipped = 0, errors = [] } = res.body;
-      console.log(`[saas_sync] ✅ ${state}: ${inserted} nuevos · ${updated} actualizados · ${skipped} omitidos`);
-      if (errors.length) {
-        console.warn(`[saas_sync] ⚠️  Errores parciales: ${errors.slice(0, 3).join(', ')}`);
+    const payload = {
+      source_state: state,
+      batch_id:     batchId || `${state}-${new Date().toISOString().slice(0, 10)}`,
+      leads:        chunkLeads,
+      competitors:  chunkCompetitors,
+    };
+
+    try {
+      const res = await _postJSON(url, payload, {
+        'x-api-key':        SAAS_API_KEY,
+        'x-scraper-source': SCRAPER_SOURCE,
+      });
+
+      if (res.status === 200) {
+        const { inserted = 0, updated = 0, skipped = 0, errors = [] } = res.body;
+        totalInserted += inserted;
+        totalUpdated += updated;
+        totalSkipped += skipped;
+        console.log(`[saas_sync] Lote ${i+1}/${maxIters} ✅: ${inserted} insertados, ${updated} actualizados`);
+        if (errors.length) {
+          console.warn(`[saas_sync] ⚠️  Errores en lote: ${errors.slice(0, 2).join(', ')}`);
+        }
+      } else {
+        console.error(`[saas_sync] HTTP ${res.status} en lote ${i+1}:`, JSON.stringify(res.body).slice(0, 200));
       }
-    } else {
-      console.error(`[saas_sync] HTTP ${res.status}:`, JSON.stringify(res.body).slice(0, 300));
+    } catch (err) {
+      console.error(`[saas_sync] Error de red en lote ${i+1}: ${err.message}`);
     }
-
-    return res.body;
-  } catch (err) {
-    console.error(`[saas_sync] Error de red: ${err.message}`);
-    return null;
   }
+
+  console.log(`[saas_sync] 🎉 Sincronización completa: ${totalInserted} leads insertados, ${totalUpdated} actualizados.`);
+  return { inserted: totalInserted, updated: totalUpdated, skipped: totalSkipped };
 }
 
 // ── Exports ───────────────────────────────────────────────────────────────────
@@ -229,10 +252,11 @@ async function _sync(mappedLeads, state, batchId) {
 /**
  * Sincroniza leads FL procesados (output de Processor.run) al SaaS API.
  * @param {object[]} leads   — array de leads de Processor.run()
+ * @param {object[]} competitors — array de competidores 
  * @param {string}   batchId — identificador del lote (ej: "FL-2026-04-29")
  */
-async function syncFLLeads(leads, batchId) {
-  return _sync(leads.map(_mapFLLead), 'FL', batchId);
+async function syncFLLeads(leads, competitors, batchId) {
+  return _sync(leads.map(_mapFLLead), competitors, 'FL', batchId);
 }
 
 /**
@@ -243,14 +267,14 @@ async function syncFLLeads(leads, batchId) {
 async function syncILLeads(leads, batchId) {
   // Filtrar leads sin permit_number válido
   const valid = leads.filter(l => l.Permit_Number);
-  return _sync(valid.map(_mapILLead), 'IL', batchId);
+  return _sync(valid.map(_mapILLead), [], 'IL', batchId);
 }
 
 /**
  * Sincroniza leads FL procesados a Supabase (alias de syncFLLeads).
  */
-async function syncToSupabase(leads, batchId) {
-  return syncFLLeads(leads, batchId);
+async function syncToSupabase(leads, competitors, batchId) {
+  return syncFLLeads(leads, competitors, batchId);
 }
 
 module.exports = { syncFLLeads, syncILLeads, syncToSupabase };

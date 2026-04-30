@@ -5,6 +5,7 @@ import type { LeadFilters as Filters, LeadTier, LeadState, ProjectType } from '@
 interface PageProps {
   searchParams: {
     state?:         string
+    county?:        string
     tier?:          string
     project_type?:  string
     min_valuation?: string
@@ -18,6 +19,7 @@ const PAGE_SIZE = 20
 export default async function DashboardPage({ searchParams }: PageProps) {
   const filters: Filters = {
     state:         (searchParams.state        as LeadState)    || 'all',
+    county:        (searchParams.county       as string)       || 'all',
     tier:          (searchParams.tier         as LeadTier)     || 'all',
     project_type:  (searchParams.project_type as ProjectType)  || 'all',
     min_valuation: searchParams.min_valuation ? Number(searchParams.min_valuation) : undefined,

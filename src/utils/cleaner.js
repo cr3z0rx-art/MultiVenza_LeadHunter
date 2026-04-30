@@ -57,7 +57,57 @@ function cleanAddress(address) {
     .replace(/\bHWY\b/g, 'Hwy');
 }
 
+/**
+ * Normaliza la dirección según los estándares postales USPS (ALL CAPS, sin puntuación).
+ * @param {string} address 
+ * @returns {string}
+ */
+function standardizeUSPS(address) {
+  if (!address) return '';
+  return address.trim().toUpperCase()
+    .replace(/\s+/g, ' ')
+    .replace(/\bAVENUE\b/g, 'AVE')
+    .replace(/\bBOULEVARD\b/g, 'BLVD')
+    .replace(/\bSTREET\b/g, 'ST')
+    .replace(/\bROAD\b/g, 'RD')
+    .replace(/\bDRIVE\b/g, 'DR')
+    .replace(/\bLANE\b/g, 'LN')
+    .replace(/\bCOURT\b/g, 'CT')
+    .replace(/\bPARKWAY\b/g, 'PKWY')
+    .replace(/\bHIGHWAY\b/g, 'HWY')
+    .replace(/\bCIRCLE\b/g, 'CIR')
+    .replace(/\bPLACE\b/g, 'PL')
+    .replace(/\bTERRACE\b/g, 'TER')
+    .replace(/\bTRAIL\b/g, 'TRL')
+    .replace(/\bNORTH\b/g, 'N')
+    .replace(/\bSOUTH\b/g, 'S')
+    .replace(/\bEAST\b/g, 'E')
+    .replace(/\bWEST\b/g, 'W')
+    .replace(/[.,]/g, ''); // Sin puntuación
+}
+
+/**
+ * Separa el nombre limpio en First Name y Last Name.
+ */
+function splitName(cleanedName) {
+  if (!cleanedName) return { firstName: '', lastName: '' };
+  const upper = cleanedName.toUpperCase();
+  const companySuffixes = [' LLC', ' INC', ' CORP', ' TRUST', ' ESTATE', ' LTD', ' PLLC', ' PA'];
+  const isCompany = companySuffixes.some(s => upper.endsWith(s) || upper.includes('COMPANY') || upper.includes('BUILDER'));
+  
+  if (isCompany) return { firstName: cleanedName, lastName: '' };
+
+  const parts = cleanedName.split(' ');
+  if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+  
+  const lastName = parts.pop();
+  const firstName = parts.join(' ');
+  return { firstName, lastName };
+}
+
 module.exports = {
   cleanName,
-  cleanAddress
+  cleanAddress,
+  standardizeUSPS,
+  splitName
 };

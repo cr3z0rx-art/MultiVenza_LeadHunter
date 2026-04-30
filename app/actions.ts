@@ -31,7 +31,7 @@ export async function fetchHotLeads(): Promise<Lead[]> {
   let { data, error } = await supabase
     .from('leads')
     .select('*')
-    .gte('created_at', cutoff)
+    .gte('permit_date', cutoff)
     .order('projected_profit', { ascending: false })
     .limit(5)
 
@@ -39,6 +39,7 @@ export async function fetchHotLeads(): Promise<Lead[]> {
     const fallback = await supabase
       .from('leads')
       .select('*')
+      .gte('created_at', cutoff) // Fallback to created_at if permit_date fails
       .order('projected_profit', { ascending: false })
       .limit(5)
     data = fallback.data
@@ -54,14 +55,18 @@ export async function fetchLeads(
 ): Promise<{ leads: Lead[]; count: number }> {
   const supabase = createAdminClient()
 
+  const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
   let q = supabase
     .from('leads')
     .select('*', { count: 'exact' })
+    .gte('permit_date', cutoff30d) // Filtro estricto de 30 días para HotRadar
     .order('estimated_valuation', { ascending: false })
     .order('created_at',          { ascending: false })
     .range(from, to)
 
   if (filters.state        && filters.state        !== 'all') q = q.eq('state', filters.state)
+  if (filters.county       && filters.county       !== 'all') q = q.eq('county', filters.county)
   if (filters.tier         && filters.tier         !== 'all') q = q.eq('tier',  filters.tier)
   if (filters.project_type && filters.project_type !== 'all') q = q.eq('project_type', filters.project_type)
   if (filters.min_valuation) q = q.gte('estimated_valuation', filters.min_valuation)

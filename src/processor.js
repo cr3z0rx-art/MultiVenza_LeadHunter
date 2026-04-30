@@ -15,7 +15,7 @@ const Logger = require('./utils/logger');
 const rules = require('./utils/rules');
 const { validateAddress } = require('./utils/address_validator');
 const Geocoder = require('./utils/geocoder');
-const { cleanName, cleanAddress } = require('./utils/cleaner');
+const { cleanName, cleanAddress, splitName, standardizeUSPS } = require('./utils/cleaner');
 
 class Processor {
   constructor(config) {
@@ -49,6 +49,7 @@ class Processor {
     this.logger.info(`Processing ${rawRecords.length} raw records with concurrency ${concurrency}`);
 
     const leads = [];
+    const competitors = [];
     const stats = {
       total: rawRecords.length,
       passed: 0,
@@ -69,15 +70,20 @@ class Processor {
       try {
         const result = await this._processRecord(record);
         if (result) {
-          leads.push(result);
-          stats.passed++;
-          stats.byCategory[result.category] = (stats.byCategory[result.category] || 0) + 1;
-          if (result.flags.noGC) stats.noGC++;
-          if (result.flags.premium) stats.premium++;
-          if (result.roofAnalysis.classification === 'critical') stats.roofCritical++;
-          if (result.roofAnalysis.classification === 'warm') stats.roofWarm++;
-          stats.totalProjectValue += result.projectValue.totalProjectValue;
-          stats.estNetProfitTotal += result.projectValue.estNetProfit;
+          if (result.isCompetitor) {
+            competitors.push(result.data);
+            stats.dropped++;
+          } else {
+            leads.push(result);
+            stats.passed++;
+            stats.byCategory[result.category] = (stats.byCategory[result.category] || 0) + 1;
+            if (result.flags.noGC) stats.noGC++;
+            if (result.flags.premium) stats.premium++;
+            if (result.roofAnalysis.classification === 'critical') stats.roofCritical++;
+            if (result.roofAnalysis.classification === 'warm') stats.roofWarm++;
+            stats.totalProjectValue += result.projectValue.totalProjectValue;
+            stats.estNetProfitTotal += result.projectValue.estNetProfit;
+          }
         } else {
           stats.dropped++;
         }
@@ -107,14 +113,14 @@ class Processor {
     this.logger.info('Processing complete', stats);
     await this._writeOutputs(leads);
 
-    return { leads, stats };
+    return { leads, competitors, stats };
   }
 
   // ─── Per-record pipeline (Async) ──────────────────────────────────────────
 
   async _processRecord(record) {
-    // 0. City filter
-    if (this.filters.cityFilter?.enabled && !this._inTargetCity(record.city)) {
+    // 0. City filter (only for Florida leads if an explicit targetCities list is configured)
+    if (this.filters.cityFilter?.enabled && record.state === 'FL' && !this._inTargetCity(record.city)) {
       return null;
     }
 
@@ -150,6 +156,21 @@ class Processor {
 
     // 4b. Hard No-GC filter when requireNoGC is enabled
     if (this.filters.requireNoGC && !noGC) {
+      if (record.contractorName && record.contractorName.trim().length > 2) {
+        return {
+          isCompetitor: true,
+          data: {
+            permitNumber: record.permitNumber,
+            state: record.state || 'FL',
+            county: record.county || null,
+            city: record.city || null,
+            contractorName: cleanName(record.contractorName),
+            projectType: category,
+            valuation: valuation,
+            permitDate: record.permitDate || null
+          }
+        };
+      }
       return null;
     }
 
@@ -158,15 +179,24 @@ class Processor {
 
     // 6. Premium city
     const isPremium = record.tier === 'PREMIUM' || this._isPremiumCity(record.city);
-    const tier = isPremium ? 'PREMIUM' : 'STANDARD';
+
+    // 8. Total Project Value
+    const projectValue = this._calcProjectValue(valuation, isPremium, category);
+
+    // Tier
+    const tier = projectValue.tierName;
     const tags = record.tags ? [...record.tags] : [];
     if (isPremium && !tags.includes('PREMIUM')) tags.push('PREMIUM');
+
+    // Add EXPANSION_TEST for non-FL
+    if (record.state && record.state !== 'FL' && !tags.includes('EXPANSION_TEST')) {
+      tags.push('EXPANSION_TEST');
+    }
 
     // 7. Score
     const score = this._calculateScore(category, noGC, roofAnalysis, valuation, isPremium, record);
 
-    // 8. Total Project Value
-    const projectValue = this._calcProjectValue(valuation, isPremium, category);
+    // 8. Total Project Value (moved up)
 
     // 9. Address validation & Robust Geocoding
     let addrValidation = validateAddress(record.address, record.city, record.zip);
@@ -198,6 +228,18 @@ class Processor {
     const urgency = rules.evaluateUrgency(urgencyPartial, { roofUrgencyAge: 18 });
     if (urgency.urgent && !tags.includes('URGENTE')) tags.push('URGENTE');
 
+    const cleanedOwner = cleanName(record.ownerName);
+    const { firstName, lastName } = splitName(cleanedOwner);
+    const uspsAddress = standardizeUSPS(addrValidation.normalizedAddress || record.address);
+
+    if (cleanedOwner) {
+      if (lastName === '') {
+        if (!tags.includes('COMMERCIAL')) tags.push('COMMERCIAL');
+      } else {
+        if (!tags.includes('HOT_LEAD')) tags.push('HOT_LEAD');
+      }
+    }
+
     // 11. Build lead object
     return {
       leadId: this._leadId(record),
@@ -209,13 +251,17 @@ class Processor {
       permitDate: record.permitDate,
       status: record.status,
       address: cleanAddress(record.address),
+      addressUSPS: uspsAddress,
       addressFormatted: addrValidation.normalizedAddress,
       addressStatus: addrValidation.status,
       addressNote: addrValidation.note,
       city: record.city,
+      state: record.state || 'FL',
       county: record.county,
       zip: record.zip,
-      ownerName: cleanName(record.ownerName),
+      ownerName: cleanedOwner,
+      firstName,
+      lastName,
       contractorName: cleanName(record.contractorName),
       contractorLic: record.contractorLic,
       valuation,
@@ -256,19 +302,23 @@ class Processor {
   }
 
   _calcProjectValue(valuation, isPremium, category) {
-    const floor = this.commission.premium.valuationFloor;
-    const totalProjectValue = isPremium && valuation < floor ? floor : valuation;
-    const estNetProfit = Math.round(totalProjectValue * 0.35 * 100) / 100;
-
-    const marketNote = isPremium && valuation < floor
-      ? `Piso PREMIUM aplicado: valor declarado $${valuation.toLocaleString()} → $${floor.toLocaleString()} (mercado FL West Coast)`
-      : '';
+    let estNetProfit = 125;
+    let tierName = 'plata';
+    
+    if (valuation > 70000) {
+      estNetProfit = 500;
+      tierName = 'diamante';
+    } else if (valuation >= 30000) {
+      estNetProfit = 250;
+      tierName = 'oro';
+    }
 
     return {
       declaredValuation: valuation,
-      totalProjectValue,
+      totalProjectValue: valuation,
       estNetProfit,
-      marketNote,
+      tierName,
+      marketNote: ''
     };
   }
 
@@ -320,6 +370,7 @@ class Processor {
     }
 
     this._writeJSON(path.join(directory, `${filePrefix}_all_${ts}.json`), leads);
+    await this._writeDialerExport(directory, leads);
     this.logger.info(`Total output: ${leads.length} qualified leads`);
   }
 
@@ -378,6 +429,34 @@ class Processor {
     }));
 
     await writer.writeRecords(rows);
+  }
+
+  async _writeDialerExport(directory, leads) {
+    if (leads.length === 0) return;
+    const filePath = path.join(directory, 'leads_para_marcador.csv');
+    const writer = createObjectCsvWriter({
+      path: filePath,
+      header: [
+        { id: 'firstName', title: 'First_Name' },
+        { id: 'lastName', title: 'Last_Name' },
+        { id: 'addressUSPS', title: 'Address' },
+        { id: 'city', title: 'City' },
+        { id: 'zip', title: 'Zip' },
+        { id: 'permitNumber', title: 'Permit_ID' },
+      ],
+    });
+
+    const rows = leads.map(l => ({
+      firstName: l.firstName,
+      lastName: l.lastName,
+      addressUSPS: l.addressUSPS,
+      city: l.city,
+      zip: l.zip,
+      permitNumber: l.permitNumber,
+    }));
+
+    await writer.writeRecords(rows);
+    this.logger.info(`Wrote dialer export to ${filePath}`);
   }
 
   _leadId(record) {

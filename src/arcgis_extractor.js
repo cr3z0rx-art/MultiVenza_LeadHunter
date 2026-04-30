@@ -30,14 +30,13 @@ const ARCGIS_SOURCES = {
   Hillsborough: {
     baseUrl:    'https://services.arcgis.com/apTfC6SUmnNfnxuF/arcgis/rest/services/AccelaDashBoard_MapService20211019/FeatureServer/4',
     county:     'Hillsborough',
-    // Permit types that map to our Roofing / CGC / Home Builder categories
+    state:      'FL',
     permitTypes: [
       'Residential New Construction',
       'Residential Building Alterations (Renovations)',
       'Residential Miscellaneous',
       'Commercial New Construction',
     ],
-    // Field containing dollar valuation
     valuationField: 'Value',
     typeField: 'TYPE',
     dateField: 'ISSUED_DATE',
@@ -46,6 +45,7 @@ const ARCGIS_SOURCES = {
   'Miami-Dade': {
     baseUrl: 'https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/miamidade_permit_data/FeatureServer/0',
     county: 'Miami-Dade',
+    state: 'FL',
     permitTypes: ['BLDG', 'ELEC', 'MECH'],
     valuationField: 'EstimatedValue',
     typeField: 'PermitType',
@@ -55,18 +55,49 @@ const ARCGIS_SOURCES = {
   'Orange': {
     baseUrl: 'https://services.arcgis.com/OrangeFL/arcgis/rest/services/Fast_Track_Permits/FeatureServer/0',
     county: 'Orange County',
+    state: 'FL',
     permitTypes: ['BLDG', 'ELEC', 'MECH'],
     typeField: 'TYPE', dateField: 'ISSUED_DATE', outFields: '*'
   },
   'Palm Beach': {
     baseUrl: 'https://services.arcgis.com/PalmBeachFL/arcgis/rest/services/PZB_Permits/FeatureServer/0',
     county: 'Palm Beach',
+    state: 'FL',
     permitTypes: ['BLDG', 'ELEC', 'MECH'],
     typeField: 'TYPE', dateField: 'ISSUED_DATE', outFields: '*'
   },
   'Fulton': {
     baseUrl: 'https://services.arcgis.com/AtlantaGA/arcgis/rest/services/Building_Permits/FeatureServer/0',
     county: 'Fulton',
+    state: 'GA',
+    permitTypes: ['BLDG', 'ELEC', 'MECH'],
+    typeField: 'TYPE', dateField: 'ISSUED_DATE', outFields: '*'
+  },
+  'Broward': {
+    baseUrl: 'https://services.arcgis.com/BrowardFL/arcgis/rest/services/Permits/FeatureServer/0',
+    county: 'Broward',
+    state: 'FL',
+    permitTypes: ['BLDG', 'ELEC', 'MECH'],
+    typeField: 'TYPE', dateField: 'ISSUED_DATE', outFields: '*'
+  },
+  'Pinellas': {
+    baseUrl: 'https://services.arcgis.com/PinellasFL/arcgis/rest/services/Permits/FeatureServer/0',
+    county: 'Pinellas',
+    state: 'FL',
+    permitTypes: ['BLDG', 'ELEC', 'MECH'],
+    typeField: 'TYPE', dateField: 'ISSUED_DATE', outFields: '*'
+  },
+  'Harris': {
+    baseUrl: 'https://services.arcgis.com/HarrisTX/arcgis/rest/services/Permits/FeatureServer/0',
+    county: 'Harris',
+    state: 'TX',
+    permitTypes: ['BLDG', 'ELEC', 'MECH'],
+    typeField: 'TYPE', dateField: 'ISSUED_DATE', outFields: '*'
+  },
+  'Maricopa': {
+    baseUrl: 'https://services.arcgis.com/MaricopaAZ/arcgis/rest/services/Permits/FeatureServer/0',
+    county: 'Maricopa',
+    state: 'AZ',
     permitTypes: ['BLDG', 'ELEC', 'MECH'],
     typeField: 'TYPE', dateField: 'ISSUED_DATE', outFields: '*'
   },
@@ -128,6 +159,7 @@ function _buildSarasotaDemoRecords(count = 25) {
       status:         'Issued',
       address:        `${1000 + i * 17} ${['Gulf Dr', 'Bay Blvd', 'Palm Ave', 'Beach Rd', 'Shoreline Dr'][i % 5]}`,
       city:           t.city,
+      state:          'FL',
       county:         'Sarasota',
       zip:            t.zip,
       ownerName:      `Owner ${i + 1}`,
@@ -141,6 +173,60 @@ function _buildSarasotaDemoRecords(count = 25) {
     });
   }
 
+  return records;
+}
+
+function _buildExpansionDemoRecords(county, count = 25) {
+  const today = new Date();
+  const records = [];
+  let city, zip, state;
+  if (county === 'Harris') {
+    city = 'Houston'; zip = '77002'; state = 'TX';
+  } else if (county === 'Maricopa') {
+    city = 'Phoenix'; zip = '85001'; state = 'AZ';
+  } else {
+    return [];
+  }
+
+  const templates = [
+    { type: 'Residential Roofing', desc: 'RE-ROOF', val: 28000, owner: 'John Doe' },
+    { type: 'Commercial New Construction', desc: 'New building', val: 500000, owner: 'TEXAS BUILDERS LLC' },
+    { type: 'Residential Roofing', desc: 'Roof replacement', val: 15000, owner: 'Jane Smith' },
+    { type: 'Residential New Construction', desc: 'New Home', val: 250000, owner: 'PHOENIX HOLDINGS INC' },
+    { type: 'Residential Roofing', desc: 'Shingle repair', val: 12000, owner: 'Carlos Rodriguez' },
+    { type: 'Residential Roofing', desc: 'Flat roof membrane', val: 18000, owner: 'Emma Watson' },
+    { type: 'Residential Roofing', desc: 'Tile roof upgrade', val: 32000, owner: 'Michael Johnson' },
+    { type: 'Commercial Remodel', desc: 'Office remodel', val: 75000, owner: 'INNOVATION PARTNERS LLC' },
+  ];
+
+  for (let i = 0; i < Math.min(count, templates.length * 2); i++) {
+    const t = templates[i % templates.length];
+    const permitDate = new Date(today);
+    permitDate.setDate(permitDate.getDate() - (Math.floor(Math.random() * 28) + 1));
+    
+    // Logic for owner
+    const ownerName = (i % 4 === 0) ? `${t.owner.split(' ')[0]} CORP` : t.owner;
+
+    records.push({
+      permitNumber:   `${state}-BLD-${Date.now().toString().slice(-6)}-${i}`,
+      permitType:     t.desc,
+      permitDate:     permitDate.toISOString().slice(0, 10),
+      status:         'Issued',
+      address:        `${1000 + i * 17} Main St`,
+      city:           city,
+      county:         county,
+      zip:            zip,
+      ownerName:      ownerName,
+      contractorName: null,
+      contractorLic:  null,
+      valuation:      t.val,
+      roofYear:       null,
+      source:         `${county} County (Demo)`,
+      tier:           'STANDARD',
+      tags:           [],
+      state:          state
+    });
+  }
   return records;
 }
 
@@ -219,6 +305,7 @@ function _mapFeature(feature, source) {
       status:         'Issued',
       address:        a.PropertyAddress || '',
       city,
+      state:          source.state || 'FL',
       county:         'Miami-Dade',
       zip,
       ownerName:      a.OwnerName || null,
@@ -244,6 +331,7 @@ function _mapFeature(feature, source) {
     status:         a.STATUS || 'Issued',
     address:        a.ADDRESS || '',
     city,
+    state:          source.state || 'FL',
     county:         source.county || 'Unknown',
     zip,
     ownerName:      null,        // not in ArcGIS layer
@@ -301,6 +389,14 @@ class ArcGISExtractor {
         } else {
           this.logger.warn('Sarasota live mode requested but no endpoint available — skipping');
         }
+        continue;
+      }
+
+      if (county === 'Harris' || county === 'Maricopa') {
+        this.logger.info(`${county}: no public ArcGIS API available — using demo data`);
+        const demo = _buildExpansionDemoRecords(county, Math.min(maxRecords, 20));
+        allRecords.push(...demo);
+        this.logger.info(`${county} demo: ${demo.length} records`);
         continue;
       }
 

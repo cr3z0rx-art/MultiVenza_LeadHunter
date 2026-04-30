@@ -26,13 +26,26 @@ const STATES: Opt<LeadState | 'all'>[] = [
   { value: 'FL',  label: '🌊 FL' },
   { value: 'GA',  label: '🍑 GA' },
   { value: 'IL',  label: '🏙️ IL' },
+  { value: 'TX',  label: '🤠 TX' },
+  { value: 'AZ',  label: '🏜️ AZ' },
+  { value: 'NC',  label: '🌲 NC' },
+]
+
+const COUNTIES: Opt<string | 'all'>[] = [
+  { value: 'all',        label: 'Todos' },
+  { value: 'Hillsborough', label: 'Hillsborough' },
+  { value: 'Sarasota',   label: 'Sarasota' },
+  { value: 'Miami-Dade', label: 'Miami-Dade' },
+  { value: 'Orange',     label: 'Orange' },
+  { value: 'Palm Beach', label: 'Palm Beach' },
+  { value: 'Fulton',     label: 'Fulton' },
 ]
 
 const TIERS: Opt<LeadTier | 'all'>[] = [
   { value: 'all',      label: 'Todos'    },
-  { value: 'diamond',  label: '💎 Diamante' },
-  { value: 'premium',  label: '⭐ Premium'  },
-  { value: 'standard', label: 'Standard'   },
+  { value: 'diamante', label: '💎 Diamante' },
+  { value: 'oro',      label: '⭐ Oro'  },
+  { value: 'plata',    label: '🥈 Plata'   },
 ]
 
 const TYPES: Opt<ProjectType | 'all'>[] = [
@@ -68,6 +81,7 @@ export function LeadFilters({ activeFilters, totalCount, dailyStats, onClose }: 
 
   const hasFilters = Boolean(
     (activeFilters.state        && activeFilters.state        !== 'all') ||
+    (activeFilters.county       && activeFilters.county       !== 'all') ||
     (activeFilters.tier         && activeFilters.tier         !== 'all') ||
     (activeFilters.project_type && activeFilters.project_type !== 'all') ||
     activeFilters.min_valuation ||
@@ -152,6 +166,18 @@ export function LeadFilters({ activeFilters, totalCount, dailyStats, onClose }: 
         ))}
       </FilterRow>
 
+      {/* ── Condado ───────────────────────────────────────────────────────── */}
+      <FilterRow label="Condado">
+        {COUNTIES.map(o => (
+          <Chip
+            key={o.value}
+            label={o.label}
+            active={activeFilters.county === o.value || (!activeFilters.county && o.value === 'all')}
+            onClick={() => setParam('county', o.value)}
+          />
+        ))}
+      </FilterRow>
+
       {/* ── Tier ──────────────────────────────────────────────────────────── */}
       <FilterRow label="Tier">
         {TIERS.map(o => (
@@ -160,7 +186,7 @@ export function LeadFilters({ activeFilters, totalCount, dailyStats, onClose }: 
             label={o.label}
             active={activeFilters.tier === o.value || (!activeFilters.tier && o.value === 'all')}
             onClick={() => setParam('tier', o.value)}
-            gold={o.value === 'diamond'}
+            gold={o.value === 'diamante'}
           />
         ))}
       </FilterRow>

@@ -1,5 +1,5 @@
-export type LeadTier         = 'diamond' | 'premium' | 'standard'
-export type LeadState        = 'FL' | 'GA' | 'IL'
+export type LeadTier         = 'diamante' | 'oro' | 'plata'
+export type LeadState        = 'FL' | 'GA' | 'IL' | 'TX' | 'AZ' | 'NC'
 export type ProjectType      = 'Roofing' | 'Flooring' | 'HVAC' | 'New Construction' | 'CGC' | 'Remodel' | 'Home Builder'
 export type RoofClass        = 'critical' | 'warm' | 'normal'
 
@@ -40,6 +40,7 @@ export interface Lead {
 
 export interface LeadFilters {
   state?:        LeadState | 'all'
+  county?:       string    | 'all'
   tier?:         LeadTier  | 'all'
   project_type?: ProjectType | 'all'
   min_valuation?: number
