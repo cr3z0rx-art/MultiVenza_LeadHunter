@@ -95,12 +95,15 @@ export async function POST(req: NextRequest) {
         permit_date:     c.permitDate
       }));
       
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('competitor_analysis')
-        .upsert(chunk, { onConflict: 'permit_number', ignoreDuplicates: true });
+        .upsert(chunk, { onConflict: 'permit_number', ignoreDuplicates: true })
+        .select('id');
         
       if (error) {
         result.errors.push(`competitor chunk: ${error.message}`);
+      } else {
+        result.inserted += data?.length ?? 0
       }
     }
   }
