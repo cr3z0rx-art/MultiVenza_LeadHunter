@@ -22,7 +22,7 @@ function isHighPriority(lead: Lead): boolean {
   if (TARGET_NICHES.has(lead.project_type) && lead.no_gc) return true
 
   // Diamond tier always qualifies
-  if (lead.tier === 'diamond') return true
+  if (lead.tier === 'diamante') return true
 
   // Urgency tags
   if (lead.tags.some(t => /emergency|urgente|urgent|critical/i.test(t))) return true
@@ -92,7 +92,7 @@ export function HotRadar({ leads }: HotRadarProps) {
                       ALTA PRIORIDAD
                     </span>
                   )}
-                  {lead.tier === 'diamond' && (
+                  {lead.tier === 'diamante' && (
                     <span
                       className="text-[8px] font-bold px-1.5 py-0.5 rounded leading-none"
                       style={{
