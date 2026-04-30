@@ -21,8 +21,11 @@ export function DashboardShell({ filters, initialLeads, totalCount, pageSize, da
     <div className="flex min-h-[calc(100vh-57px)]">
 
       {/* ── Desktop sidebar ───────────────────────────────────────────────────── */}
-      <aside className="hidden lg:block sticky top-[57px] self-start h-[calc(100vh-57px)] overflow-y-auto w-72 flex-shrink-0 border-r border-navy-800">
-        <div className="p-5">
+      <aside
+        className="hidden lg:flex lg:flex-col sticky top-[57px] self-start h-[calc(100vh-57px)] overflow-y-auto w-[260px] flex-shrink-0 bg-navy-950"
+        style={{ borderRight: '1px solid rgba(0,212,232,0.07)' }}
+      >
+        <div className="p-4">
           <LeadFilters activeFilters={filters} totalCount={totalCount} dailyStats={dailyStats} />
         </div>
       </aside>
@@ -31,10 +34,13 @@ export function DashboardShell({ filters, initialLeads, totalCount, pageSize, da
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/70"
             onClick={() => setSidebarOpen(false)}
           />
-          <aside className="absolute left-0 top-0 bottom-0 w-72 bg-navy-950 border-r border-navy-800 overflow-y-auto z-10">
+          <aside
+            className="absolute left-0 top-0 bottom-0 w-[260px] bg-navy-950 overflow-y-auto z-10"
+            style={{ borderRight: '1px solid rgba(0,212,232,0.07)' }}
+          >
             <div className="p-4">
               <LeadFilters
                 activeFilters={filters}
@@ -48,27 +54,28 @@ export function DashboardShell({ filters, initialLeads, totalCount, pageSize, da
       )}
 
       {/* ── Main content ──────────────────────────────────────────────────────── */}
-      <main className="flex-1 min-w-0 px-4 py-6 lg:px-8">
-        <div className="mb-5 lg:hidden">
+      <main className="flex-1 min-w-0 px-5 py-5 bg-navy-900">
+        <div className="mb-4 lg:hidden">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-navy-800 border border-navy-700 text-slate-400 hover:text-white hover:border-navy-600 transition-colors text-sm font-medium"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-navy-800 border text-slate-400 hover:text-white transition-colors text-xs font-medium"
+            style={{ borderColor: 'rgba(0,212,232,0.1)' }}
             aria-label="Abrir filtros"
           >
-            <Menu className="w-4 h-4" />
+            <Menu className="w-3.5 h-3.5" />
             Filtros
-            <span className="text-slate-600 text-xs tabular-nums">
-              ({totalCount.toLocaleString()})
-            </span>
+            <span className="text-slate-600 tabular-nums">({totalCount.toLocaleString()})</span>
           </button>
         </div>
 
-        <LeadFeed
-          initialLeads={initialLeads}
-          totalCount={totalCount}
-          filters={filters}
-          pageSize={pageSize}
-        />
+        <div className="max-w-[700px]">
+          <LeadFeed
+            initialLeads={initialLeads}
+            totalCount={totalCount}
+            filters={filters}
+            pageSize={pageSize}
+          />
+        </div>
       </main>
 
     </div>

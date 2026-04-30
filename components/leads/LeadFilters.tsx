@@ -75,34 +75,37 @@ export function LeadFilters({ activeFilters, totalCount, dailyStats, onClose }: 
   )
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-2.5">
 
       {/* ── Pipeline 24h stat card ─────────────────────────────────────────── */}
       <div
-        className="rounded-xl p-3.5 border mb-1"
+        className="rounded-lg p-3 border"
         style={{
-          background:   'linear-gradient(135deg, rgba(0,212,232,0.07) 0%, rgba(13,20,32,0.9) 60%)',
-          borderColor:  'rgba(0,212,232,0.22)',
-          boxShadow:    '0 0 18px rgba(0,212,232,0.08), inset 0 1px 0 rgba(0,212,232,0.08)',
+          background:  'rgba(0,212,232,0.04)',
+          borderColor: 'rgba(0,212,232,0.14)',
         }}
       >
         <div className="flex items-center gap-1.5 mb-2">
-          <TrendingUp className="w-3.5 h-3.5" style={{ color: '#00D4E8' }} />
-          <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: '#00D4E8' }}>
-            Pipeline · Últimas 24h
+          <TrendingUp className="w-3 h-3 flex-shrink-0" style={{ color: '#00D4E8' }} />
+          <span className="text-[9px] uppercase tracking-widest font-semibold" style={{ color: '#00A3AD' }}>
+            Pipeline · 24h
           </span>
         </div>
 
-        <div className="tabular-nums font-extrabold text-2xl leading-none tracking-tight text-white mb-0.5">
-          {formatCompact(dailyStats.tpv24h)}
+        <div className="flex items-baseline gap-2 mb-1.5">
+          <span className="tabular-nums font-bold text-[17px] leading-none text-white">
+            {formatCompact(dailyStats.tpv24h)}
+          </span>
+          <span className="text-[10px] text-slate-600 font-medium">TPV</span>
         </div>
-        <div className="text-[11px] text-slate-500">
-          TPV &nbsp;·&nbsp;
-          <span className="text-emerald-400 font-medium">{formatCompact(dailyStats.profit24h)}</span>
-          {' '}net profit
-        </div>
-        <div className="mt-2 pt-2 border-t border-navy-700 text-[11px] text-slate-600">
-          {dailyStats.count24h} lead{dailyStats.count24h !== 1 ? 's' : ''} ingresados
+
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-emerald-400 font-medium tabular-nums">
+            {formatCompact(dailyStats.profit24h)} profit
+          </span>
+          <span className="text-[10px] text-slate-600 tabular-nums">
+            {dailyStats.count24h} leads
+          </span>
         </div>
       </div>
 
