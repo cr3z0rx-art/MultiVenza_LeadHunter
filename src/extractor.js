@@ -33,6 +33,7 @@
 
 const { ApifyClient } = require('apify-client');
 const Logger = require('./utils/logger');
+const portalHandler = require('./scrapers/portal_handler');
 
 const COUNTY_CONFIG = {
   Hillsborough: {
@@ -54,6 +55,14 @@ const COUNTY_CONFIG = {
   Charlotte: {
     url:    'https://www.charlottecountyfl.gov/departments/community-development/building-construction-services',
     driver: 'generic',
+  },
+  Orange: {
+    url:    'https://fasttrack.ocfl.net/OnlineServices/PermitsAllTypes.aspx',
+    driver: 'orange',
+  },
+  'Palm Beach': {
+    url:    'https://www.pbcgov.com/epzb',
+    driver: 'palmbeach',
   },
 };
 
@@ -148,6 +157,8 @@ class Extractor {
     switch (driver) {
       case 'accela':    return this._accelaPageFn(county, maxItems);
       case 'etrakit':   return this._etrakitPageFn(county, maxItems);
+      case 'orange':    return portalHandler.getOrangeCountyDriver(maxItems);
+      case 'palmbeach': return portalHandler.getPalmBeachDriver(maxItems);
       default:          return this._genericPageFn(county, maxItems);
     }
   }
@@ -462,6 +473,8 @@ const STATUSES = ['ISSUED', 'FINALED', 'APPLIED', 'EXPIRED', 'ISSUED'];
 const DEMO_CITIES = {
   Sarasota:     ['Sarasota', 'Siesta Key', 'Venice', 'Nokomis', 'North Port', 'Laurel', 'Siesta Key'],
   Hillsborough: ['Tampa', 'Tampa', 'Tampa'],
+  Orange:       ['Orlando', 'Winter Park', 'Apopka', 'Ocoee'],
+  'Palm Beach': ['West Palm Beach', 'Boca Raton', 'Boynton Beach'],
 };
 
 function randomPastDate(seed) {
@@ -482,11 +495,25 @@ const DEMO_TEMPLATES = {
     valuations:  [12500,18750,9800,22000,345000,15400,480000,11200,275000,8500,390000,14300,520000,16800,9200,265000,13700,19500,440000,11900,310000,17200,8800,295000,21000],
   }],
   Hillsborough: [{
-    addresses:   ['4102 HENDERSON BLVD','2215 SWANN AVE','801 S DALE MABRY HWY','5210 BAYSHORE BLVD','3800 W GANDY BLVD','1420 N ARMENIA AVE','6215 GUNN HWY','910 W KENNEDY BLVD','3311 W CYPRESS ST','714 S HOWARD AVE','4507 N CLARK AVE','2101 E LAKE AVE','1805 W PLATT ST','5310 BRIDGE ST','3915 W BAY TO BAY BLVD','2220 E HILLSBOROUGH AVE','7105 N FLORIDA AVE','1620 CHANNELSIDE DR','4800 EHRLICH RD','320 S ARMENIA AVE','5820 W LINEBAUGH AVE','2414 N ROME AVE','9001 SHELDON RD','3400 W UNION ST','1211 S MACDILL AVE'],
+    addresses:   ['4102 HENDERSON BLVD','2215 SWANN AVE','801 S DALE MABRY HWY','5210 BAYSHORE BLVD','3800 W GANDY BLVD','1420 N ARMENIA AVE','6215 GUNN HWY','910 W KENNEDY BLVD','3311 W CYPRESS ST','714 S Howard AVE','4507 N CLARK AVE','2101 E LAKE AVE','1805 W PLATT ST','5310 BRIDGE ST','3915 W BAY TO BAY BLVD','2220 E HILLSBOROUGH AVE','7105 N FLORIDA AVE','1620 CHANNELSIDE DR','4800 EHRLICH RD','320 S ARMENIA AVE','5820 W LINEBAUGH AVE','2414 N ROME AVE','9001 SHELDON RD','3400 W UNION ST','1211 S MACDILL AVE'],
     zips:        ['33609','33606','33611','33629','33614','33612','33617'],
     owners:      ['RODRIGUEZ JOSE A','WILLIAMS MARY','BROWN JAMES E','DAVIS LINDA K','MILLER ROBERT','WILSON PATRICIA','MOORE CHARLES','TAYLOR BARBARA','JACKSON RICHARD','LEE HELEN','THOMAS FRANK','HERNANDEZ ANA','GONZALEZ MIGUEL','LOPEZ CARMEN','SANCHEZ PEDRO','CLARK DOROTHY','LEWIS GEORGE','ROBINSON RUTH','WALKER PAUL','HALL CAROL','ALLEN MARK','YOUNG DIANE','KING STEVEN','WRIGHT ALICE','SCOTT LARRY'],
     contractors: ['TAMPA BAY ROOFING CO','SUNBELT CONSTRUCTION INC','FLORIDA HOME BUILDERS LLC','OWNER BUILDER','HILLSBOROUGH ROOFING PROS','BAY AREA CONTRACTORS GROUP','PREMIER FLORIDA ROOFING','METRO CONSTRUCTION SERVICES'],
     valuations:  [14200,21500,9500,385000,16800,450000,12300,19700,295000,11400,375000,18200,520000,13900,22500,275000,10800,415000,17500,9100,340000,15600,490000,20100,11700],
+  }],
+  Orange: [{
+    addresses:   ['100 ORLANDO AVE', '200 WINTER PARK ST'],
+    zips:        ['32801'],
+    owners:      ['JONES BOB'],
+    contractors: ['ORANGE BUILDERS'],
+    valuations:  [20000]
+  }],
+  'Palm Beach': [{
+    addresses:   ['100 PALM WAY', '200 BEACH BLVD'],
+    zips:        ['33401'],
+    owners:      ['SMITH JANE'],
+    contractors: ['PALM ROOFING'],
+    valuations:  [25000]
   }],
 };
 
