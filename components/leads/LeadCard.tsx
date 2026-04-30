@@ -45,7 +45,8 @@ const TIER = {
 } as const
 
 export function LeadCard({ lead, onUnlock }: LeadCardProps) {
-  const t = TIER[lead.tier]
+  // Safe lookup to prevent WSOD if database has legacy values (e.g., 'diamond')
+  const t = TIER[lead.tier] || TIER.plata
   const days = daysAgo(lead.permit_date)
   const [isFetchingPhone, setIsFetchingPhone] = useState(false)
 

@@ -52,6 +52,23 @@ async function getMarketInsights() {
 export default async function InsightsPage() {
   const { metrics, totalMarketTPV } = await getMarketInsights()
 
+  if (!metrics || metrics.length === 0) {
+    return (
+      <div className="p-8 text-center animate-in fade-in duration-500">
+        <div className="max-w-md mx-auto bg-navy-800 border border-navy-700 p-12 rounded-3xl">
+          <div className="w-16 h-16 bg-navy-900 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-navy-700">
+            <Search className="w-8 h-8 text-slate-500" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Sin Datos de Inteligencia</h2>
+          <p className="text-slate-400 text-sm leading-relaxed">
+            Todavía no hay suficiente data de competidores en la base de datos. 
+            Ejecuta una barrida con contratistas para poblar esta sección.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <header className="mb-8">

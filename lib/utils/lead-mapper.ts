@@ -24,7 +24,7 @@ export function toFrontendLead(row: Record<string, unknown>): Lead {
     projected_profit:     (row.projected_profit as number) ?? Math.round(valuation * 0.35),
     tier,
     score:                (row.score as number)           ?? computeScore(tier, valuation),
-    tags:                 (row.tags as string[])          ?? [],
+    tags:                 Array.isArray(row.tags) ? (row.tags as string[]) : [],
     no_gc:                (row.no_gc as boolean)          ?? false,
     roof_age:             (row.roof_age as number)        ?? null,
     roof_classification:  (row.roof_classification as RoofClass) ?? null,
