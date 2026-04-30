@@ -26,8 +26,8 @@ const STATES: Opt<LeadState | 'all'>[] = [
   { value: 'FL',  label: '🌊 FL' },
   { value: 'GA',  label: '🍑 GA' },
   { value: 'IL',  label: '🏙️ IL' },
-  { value: 'TX',  label: '🤠 TX' },
-  { value: 'AZ',  label: '🏜️ AZ' },
+  { value: 'TX',  label: '🌵 TX' },
+  { value: 'AZ',  label: '☀️ AZ' },
   { value: 'NC',  label: '🌲 NC' },
 ]
 
