@@ -24,6 +24,29 @@ export async function fetchDailyStats(): Promise<DailyStats> {
   }
 }
 
+export async function fetchHotLeads(): Promise<Lead[]> {
+  const supabase = createAdminClient()
+  const cutoff   = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  let { data, error } = await supabase
+    .from('leads')
+    .select('*')
+    .gte('created_at', cutoff)
+    .order('projected_profit', { ascending: false })
+    .limit(5)
+
+  if (error || !data?.length) {
+    const fallback = await supabase
+      .from('leads')
+      .select('*')
+      .order('projected_profit', { ascending: false })
+      .limit(5)
+    data = fallback.data
+  }
+
+  return (data ?? []).map(toFrontendLead)
+}
+
 export async function fetchLeads(
   filters: LeadFilters,
   from: number,
