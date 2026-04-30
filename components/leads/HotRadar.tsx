@@ -14,14 +14,20 @@ function formatCompact(n: number): string {
   return `$${n.toLocaleString()}`
 }
 
-const HIGH_PRIORITY_TYPES = new Set(['Roofing', 'CGC', 'New Construction'])
+// The 4 target niches for this run
+const TARGET_NICHES = new Set<string>(['Roofing', 'HVAC', 'CGC', 'New Construction'])
 
 function isHighPriority(lead: Lead): boolean {
-  return (
-    lead.tier === 'diamond' ||
-    HIGH_PRIORITY_TYPES.has(lead.project_type) ||
-    lead.tags.some(t => /emergency|urgente|urgent|critical/i.test(t))
-  )
+  // Highest signal: niche + No-GC (both conditions met)
+  if (TARGET_NICHES.has(lead.project_type) && lead.no_gc) return true
+
+  // Diamond tier always qualifies
+  if (lead.tier === 'diamond') return true
+
+  // Urgency tags
+  if (lead.tags.some(t => /emergency|urgente|urgent|critical/i.test(t))) return true
+
+  return false
 }
 
 export function HotRadar({ leads }: HotRadarProps) {

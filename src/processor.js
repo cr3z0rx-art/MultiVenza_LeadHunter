@@ -138,6 +138,11 @@ class Processor {
     // 4. No-GC rule
     const noGC = rules.isNoGC(record.contractorName);
 
+    // 4b. Hard No-GC filter when requireNoGC is enabled
+    if (this.filters.requireNoGC && !noGC) {
+      return null;
+    }
+
     // 5. 15-Year roof analysis
     const roofAnalysis = rules.applyRoofAgeRule(record, this.filters.roofAgeRule);
 

@@ -62,14 +62,24 @@
     },
     "cgc": {
       "enabled": true,
-      "permitKeywords": ["CGC", "CERTIFIED GENERAL CONTRACTOR", "ADDITION", "REMODEL", "ALTERATION", "NEW CONSTRUCTION"],
+      "permitKeywords": ["CGC", "CERTIFIED GENERAL CONTRACTOR", "ADDITION", "REMODEL", "ALTERATION", "NEW CONSTRUCTION", "GENERAL CONSTRUCTION"],
       "licensePrefix": "CGC",
       "priority": 2
     },
-    "homeBuilders": {
+    "electrical": {
       "enabled": true,
-      "permitKeywords": ["NEW HOME", "SFR", "SINGLE FAMILY", "RESIDENTIAL NEW", "CUSTOM HOME"],
+      "permitKeywords": ["ELECTRICAL", "ELECTRIC", "WIRING", "REWIRE", "PANEL UPGRADE", "SERVICE CHANGE", "LOW VOLTAGE"],
       "priority": 3
+    },
+    "hvac": {
+      "enabled": true,
+      "permitKeywords": ["HVAC", "AIR CONDITIONING", "A/C", "AC UNIT", "HEATING", "COOLING", "MECHANICAL", "DUCTWORK", "HEAT PUMP"],
+      "priority": 4
+    },
+    "homeBuilders": {
+      "enabled": false,
+      "permitKeywords": ["NEW HOME", "SFR", "SINGLE FAMILY", "RESIDENTIAL NEW", "CUSTOM HOME"],
+      "priority": 5
     }
   },
 
@@ -103,6 +113,7 @@
       "include": ["ISSUED", "FINALED", "EXPIRED", "APPLIED"],
       "exclude": ["VOID", "WITHDRAWN", "CANCELLED"]
     },
+    "requireNoGC": true,
     "valuationMin": 5000,
     "excludedZips": [],
     "cityFilter": {
