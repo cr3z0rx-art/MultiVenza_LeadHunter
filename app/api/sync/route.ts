@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase
       .from('leads')
       .upsert(chunk, { onConflict: 'permit_number', ignoreDuplicates: false })
+      .select('permit_number')
 
     if (error) {
       result.errors.push(`chunk ${Math.floor(i / CHUNK_SIZE)}: ${error.message}`)
