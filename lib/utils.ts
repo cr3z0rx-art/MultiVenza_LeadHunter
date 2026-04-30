@@ -27,6 +27,6 @@ export function daysAgo(dateStr: string | null | undefined): number | null {
 }
 
 export function stateFlag(state: string): string {
-  const map: Record<string, string> = { FL: '🌊', GA: '🍑', IL: '🏙️' }
+  const map: Record<string, string> = { FL: '🌊', GA: '🍑', IL: '🏙️', TX: '🌵', AZ: '☀️' }
   return map[state] ?? '📍'
 }

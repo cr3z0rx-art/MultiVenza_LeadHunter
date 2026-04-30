@@ -51,7 +51,7 @@ const _FL_CATEGORY_MAP = {
  * Convierte un lead FL procesado (output de Processor.run) al shape del SaaS API.
  * @param {object} lead  — lead object de processor.js
  */
-function _mapFLLead(lead) {
+function _mapFLLead(lead, sourceState) {
   // totalProjectValue incluye el piso de $250k para ciudades PREMIUM — es el
   // valor real del contrato, que el SaaS debe mostrar como estimated_valuation
   const tpv = lead.projectValue?.totalProjectValue ?? lead.valuation ?? 0;
@@ -59,7 +59,7 @@ function _mapFLLead(lead) {
   return {
     city:                lead.city         || '',
     zip_code:            lead.zip          || null,
-    state:               lead.state        || 'FL',
+    state:               lead.state        || sourceState || 'FL',
     county:              lead.county       || null,
     project_type:        _FL_CATEGORY_MAP[lead.category] || 'Remodel',
     estimated_valuation: tpv,
@@ -256,7 +256,7 @@ async function _sync(mappedLeads, mappedCompetitors, state, batchId) {
  * @param {string}   batchId — identificador del lote (ej: "FL-2026-04-29")
  */
 async function syncFLLeads(leads, competitors, batchId) {
-  return _sync(leads.map(_mapFLLead), competitors, 'FL', batchId);
+  return _sync(leads.map(l => _mapFLLead(l, 'FL')), competitors, 'FL', batchId);
 }
 
 /**
