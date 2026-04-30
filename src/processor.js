@@ -131,6 +131,23 @@ class Processor {
       if (!hasMatch) return null;
     }
 
+    // --- FILTRO DE PRODUCCIÓN ESTRICTO ---
+    const sourceStr = (record.source || '').toUpperCase();
+    if (sourceStr.includes('DEMO')) {
+      this.logger.debug(`Dropped ${record.permitNumber}: Source is DEMO`);
+      return null;
+    }
+
+    if (!record.valuation || record.valuation <= 0) {
+      this.logger.debug(`Dropped ${record.permitNumber}: No real valuation`);
+      return null;
+    }
+
+    if (!record.address || record.address.length < 5) {
+      this.logger.debug(`Dropped ${record.permitNumber}: Incomplete physical address`);
+      return null;
+    }
+
     // Hard Filter No-GC
     if (record.contractorName) return null;
 
@@ -256,7 +273,11 @@ class Processor {
       addressStatus: addrValidation.status,
       addressNote: addrValidation.note,
       city: record.city,
-      state: record.state || 'FL',
+      state: record.state || (
+        record.city?.toUpperCase().includes('HOUSTON') ? 'TX' :
+        record.city?.toUpperCase().includes('PHOENIX') ? 'AZ' :
+        record.city?.toUpperCase().includes('ATLANTA') ? 'GA' : 'FL'
+      ),
       county: record.county,
       zip: record.zip,
       ownerName: cleanedOwner,

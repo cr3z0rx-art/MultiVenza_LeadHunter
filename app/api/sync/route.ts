@@ -145,3 +145,31 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(result)
 }
+
+export async function DELETE(req: NextRequest) {
+  // ── Auth ────────────────────────────────────────────────────────────────────
+  const apiKey = req.headers.get('x-api-key')
+  if (!apiKey || apiKey !== process.env.SYNC_API_KEY) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const supabase = serviceClient()
+  
+  // 1. Purge Demo Leads
+  const { error: leadsError } = await supabase
+    .from('leads')
+    .delete()
+    .or('government_source.ilike.%Demo%,project_type.ilike.%Demo%')
+
+  // 2. Purge Demo Competitors
+  const { error: compError } = await supabase
+    .from('competitor_analysis')
+    .delete()
+    .or('contractor_name.ilike.%Demo%')
+
+  if (leadsError || compError) {
+    return NextResponse.json({ error: leadsError?.message || compError?.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ message: 'Purge complete' })
+}

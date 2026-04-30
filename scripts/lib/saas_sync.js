@@ -59,7 +59,11 @@ function _mapFLLead(lead, sourceState) {
   return {
     city:                lead.city         || '',
     zip_code:            lead.zip          || null,
-    state:               lead.state        || sourceState || 'FL',
+    state:               lead.state        || sourceState || (
+      lead.city?.toUpperCase().includes('HOUSTON') ? 'TX' :
+      lead.city?.toUpperCase().includes('PHOENIX') ? 'AZ' :
+      lead.city?.toUpperCase().includes('ATLANTA') ? 'GA' : 'FL'
+    ),
     county:              lead.county       || null,
     project_type:        _FL_CATEGORY_MAP[lead.category] || 'Remodel',
     estimated_valuation: tpv,
