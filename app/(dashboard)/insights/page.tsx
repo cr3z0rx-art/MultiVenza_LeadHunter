@@ -18,6 +18,8 @@ async function getMarketInsights() {
   const { data, error } = await supabase
     .from('competitor_analysis')
     .select('contractor_name, county, valuation')
+    .order('valuation', { ascending: false })
+    .limit(1000)
     
   if (error || !data) return { metrics: [], totalMarketTPV: 0 }
   
