@@ -35,7 +35,10 @@
       "Ocoee",
       "West Palm Beach",
       "Boca Raton",
-      "Boynton Beach"
+      "Boynton Beach",
+      "Houston",
+      "Phoenix",
+      "Atlanta"
     ],
     "premiumCities": [
       "Siesta Key",
@@ -124,12 +127,12 @@
     "valuationMin": 5000,
     "excludedZips": [],
     "cityFilter": {
-      "enabled": true,
+      "enabled": false,
       "description": "Only process permits from targetCities. Records from outside the list are dropped."
     },
     "keywordFilter": {
       "enabled": true,
-      "allowed": ["ROOF", "HVAC", "ELECTRICAL", "CGC"]
+      "allowed": ["ROOF", "HVAC", "ELECTRICAL", "CGC", "BLDG", "NEW", "CONSTRUCTION", "ADDITION", "REMODEL"]
     }
   },
 

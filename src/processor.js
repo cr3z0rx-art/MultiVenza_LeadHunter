@@ -148,8 +148,10 @@ class Processor {
       return null;
     }
 
-    // Hard Filter No-GC
-    if (record.contractorName) return null;
+    // Hard Filter No-GC (HotRadar priority)
+    if (!rules.isNoGC(record.contractorName)) {
+      return null;
+    }
 
     // 1. Status filter
     if (!this._passesStatusFilter(record.status)) {

@@ -49,7 +49,6 @@ export async function POST(req: NextRequest) {
       county:              l.county              ?? null,
       project_type:        l.project_type        ?? 'Remodel',
       estimated_valuation: l.estimated_valuation ?? 0,
-      projected_profit:    l.projected_profit    ?? 0,
       tier:                l.tier                ?? 'plata',
       score:               l.score               ?? 0,
       tags:                l.tags                ?? [],

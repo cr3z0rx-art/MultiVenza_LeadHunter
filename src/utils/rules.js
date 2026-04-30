@@ -26,6 +26,7 @@ const NO_GC_IDENTIFIERS = new Set([
   'SELF',
   'HOMEOWNER',
   'NONE',
+  'OWNER',
   '',
   null,
   undefined,
