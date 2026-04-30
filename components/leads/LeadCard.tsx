@@ -19,7 +19,7 @@ const TIER = {
     badge:     'bg-gold-500/15 text-gold-400 border border-gold-500/40',
     accent:    'from-gold-700 via-gold-500 to-gold-700',
     score:     'bg-gold-500/15 border-gold-500/30 text-gold-400',
-    unlockBtn: 'bg-gradient-to-r from-gold-600 to-gold-500 hover:from-gold-500 hover:to-gold-400 text-navy-950 shadow-gold-900/40',
+    unlockBtn: 'bg-gradient-to-r from-gold-600 to-gold-500 hover:from-gold-500 hover:to-gold-400 text-navy-950 shadow-lg',
     lockIcon:  'bg-gold-500/15 border-gold-500/30 text-gold-400',
     glow:      true,
   },
