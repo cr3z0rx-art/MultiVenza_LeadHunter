@@ -4,8 +4,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useCallback } from 'react'
 import { SlidersHorizontal, X, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { LeadFilters, LeadState, LeadTier, ProjectType } from '@/lib/types/lead'
-import type { DailyStats } from '@/app/actions'
+import type { LeadFilters, LeadState, LeadTier, ProjectType, DailyStats } from '@/lib/types/lead'
 
 interface LeadFiltersProps {
   activeFilters: LeadFilters

@@ -140,7 +140,7 @@ export function LeadCard({ lead, onUnlock }: LeadCardProps) {
           <div className="bg-navy-900/70 rounded-xl p-3 border border-navy-700/60">
             <div className="flex items-center gap-1.5 mb-1">
               <TrendingUp className="w-3 h-3 text-emerald-600" />
-              <span className="text-slate-600 text-[10px] uppercase tracking-wider">Utilidad 40%</span>
+              <span className="text-slate-600 text-[10px] uppercase tracking-wider">Utilidad 35%</span>
             </div>
             <span className="text-base font-bold text-emerald-400 tabular-nums">
               {formatCurrency(lead.projected_profit)}

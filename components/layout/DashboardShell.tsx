@@ -4,8 +4,7 @@ import { useState } from 'react'
 import { Menu } from 'lucide-react'
 import { LeadFilters } from '@/components/leads/LeadFilters'
 import { LeadFeed } from '@/components/leads/LeadFeed'
-import type { Lead, LeadFilters as Filters } from '@/lib/types/lead'
-import type { DailyStats } from '@/app/actions'
+import type { Lead, LeadFilters as Filters, DailyStats } from '@/lib/types/lead'
 
 interface DashboardShellProps {
   filters:      Filters

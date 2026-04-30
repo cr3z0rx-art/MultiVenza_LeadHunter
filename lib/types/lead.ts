@@ -84,3 +84,9 @@ export interface SyncResult {
   skipped:  number
   errors:   string[]
 }
+
+export interface DailyStats {
+  tpv24h:    number
+  count24h:  number
+  profit24h: number
+}

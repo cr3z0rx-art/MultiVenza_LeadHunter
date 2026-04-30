@@ -1,14 +1,10 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { Lead, LeadFilters } from '@/lib/types/lead'
+import type { Lead, LeadFilters, DailyStats } from '@/lib/types/lead'
 import { toFrontendLead } from '@/lib/utils/lead-mapper'
 
-export interface DailyStats {
-  tpv24h:    number
-  count24h:  number
-  profit24h: number
-}
+export type { DailyStats }
 
 export async function fetchDailyStats(): Promise<DailyStats> {
   const supabase = createAdminClient()
@@ -47,6 +43,7 @@ export async function fetchLeads(
   if (filters.project_type && filters.project_type !== 'all') q = q.eq('project_type', filters.project_type)
   if (filters.min_valuation) q = q.gte('estimated_valuation', filters.min_valuation)
   if (filters.max_valuation) q = q.lte('estimated_valuation', filters.max_valuation)
+  if (filters.no_gc_only)    q = q.eq('no_gc', true)
 
   const { data, count, error } = await q
 
