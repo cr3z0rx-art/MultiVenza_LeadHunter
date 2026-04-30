@@ -113,7 +113,7 @@
       "include": ["ISSUED", "FINALED", "EXPIRED", "APPLIED"],
       "exclude": ["VOID", "WITHDRAWN", "CANCELLED"]
     },
-    "requireNoGC": true,
+    "requireNoGC": false,
     "valuationMin": 5000,
     "excludedZips": [],
     "cityFilter": {
