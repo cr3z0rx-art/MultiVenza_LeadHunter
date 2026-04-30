@@ -58,6 +58,7 @@ export interface SyncPayload {
     county?:             string
     project_type:        ProjectType
     estimated_valuation: number
+    projected_profit?:   number
     tier:                LeadTier
     score:               number
     tags?:               string[]
@@ -75,7 +76,17 @@ export interface SyncPayload {
     government_source?:  string
     processed_at?:       string
   }>
-  source_state: LeadState
+  competitors?: Array<{
+    permitNumber: string
+    state: string
+    county?: string
+    city?: string
+    contractorName: string
+    projectType: string
+    valuation: number
+    permitDate?: string
+  }>
+  source_state: LeadState | 'MIXED'
   batch_id?:    string
 }
 
