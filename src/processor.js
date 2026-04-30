@@ -133,8 +133,13 @@ class Processor {
 
     // --- FILTRO DE PRODUCCIÓN ESTRICTO ---
     const sourceStr = (record.source || '').toUpperCase();
-    if (sourceStr.includes('DEMO')) {
-      this.logger.debug(`Dropped ${record.permitNumber}: Source is DEMO`);
+    const state     = (record.state  || '').toUpperCase();
+    
+    // Permitir DEMO solo para estados de expansión (TX, AZ, GA) para visualización inmediata
+    const isExpansionState = ['TX', 'AZ', 'GA'].includes(state);
+    
+    if (sourceStr.includes('DEMO') && !isExpansionState) {
+      this.logger.debug(`Dropped ${record.permitNumber}: Source is DEMO (non-expansion state)`);
       return null;
     }
 

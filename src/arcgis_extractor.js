@@ -88,16 +88,19 @@ const ARCGIS_SOURCES = {
     typeField: 'TYPE', dateField: 'ISSUED_DATE', outFields: '*'
   },
   'Harris': {
-    baseUrl: 'https://services.arcgis.com/HarrisTX/arcgis/rest/services/Permits/FeatureServer/0',
-    county: 'Harris',
-    state: 'TX',
-    permitTypes: ['BLDG', 'ELEC', 'MECH'],
-    typeField: 'TYPE', dateField: 'ISSUED_DATE', outFields: '*'
+    baseUrl:    'https://www.gis.hctx.net/arcgishcpid/rest/services/Permits/IssuedPermits/FeatureServer/0',
+    county:     'Harris',
+    state:      'TX',
+    permitTypes: ['Residential', 'Commercial', 'Building'],
+    valuationField: 'VALUATION',
+    typeField: 'APPTYPE',
+    dateField: 'ISSUEDDATE',
+    outFields: 'PERMITNUMBER,APPTYPE,ISSUEDDATE,FULLADDRESS,VALUATION,PROJECTNAME',
   },
   'Maricopa': {
-    baseUrl: 'https://services.arcgis.com/MaricopaAZ/arcgis/rest/services/Permits/FeatureServer/0',
-    county: 'Maricopa',
-    state: 'AZ',
+    baseUrl:    'https://gis.maricopa.gov/arcgis/rest/services/Planning/Building_Permits/FeatureServer/0',
+    county:     'Maricopa',
+    state:      'AZ',
     permitTypes: ['BLDG', 'ELEC', 'MECH'],
     typeField: 'TYPE', dateField: 'ISSUED_DATE', outFields: '*'
   },
@@ -293,6 +296,29 @@ function _parseDate(epochMs) {
 
 function _mapFeature(feature, source) {
   const a = feature.attributes;
+
+  if (source.county === 'Harris') {
+    const val = parseFloat(a.VALUATION) || 0;
+    return {
+      permitNumber:   a.PERMITNUMBER || `TX-HARRIS-${Date.now()}`,
+      permitType:     a.APPTYPE || 'Building Permit',
+      permitDate:     _parseDate(a.ISSUEDDATE),
+      status:         'Issued',
+      address:        a.FULLADDRESS || '',
+      city:           'Houston',
+      state:          'TX',
+      county:         'Harris',
+      zip:            '',
+      ownerName:      a.PROJECTNAME || null,
+      contractorName: null,
+      contractorLic:  null,
+      valuation:      val,
+      roofYear:       null,
+      source:         'Harris County ArcGIS',
+      tier:           'STANDARD',
+      tags:           [],
+    };
+  }
 
   if (source.county === 'Miami-Dade') {
     const { city, zip } = _parseCity(a.City);
