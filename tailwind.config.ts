@@ -8,39 +8,52 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Background scale — matches multivenzadigital.com exactly
         navy: {
-          950: '#060d1a',
-          900: '#0f172a',
-          800: '#1e293b',
-          700: '#334155',
-          600: '#475569',
+          950: '#080D14',
+          900: '#0D1420',
+          800: '#111B2A',
+          700: '#1a2535',
+          600: '#243044',
         },
+        // Primary accent: cyan (#00D4E8) replaces legacy gold
+        // Keeping "gold" key so all existing components rebrand automatically
         gold: {
-          300: '#f0d595',
-          400: '#dbb96a',
-          500: '#c9a961',
-          600: '#b8922f',
-          700: '#9a7a24',
-          950: '#1a1206',
+          300: '#7ee8f0',
+          400: '#00D4E8',   // main brand cyan
+          500: '#00B8CA',
+          600: '#00A3AD',   // dark cyan — used in logo "Multi"
+          700: '#008a93',
+          950: '#011820',
+        },
+        // Brand blue
+        blue: {
+          brand: '#2563EB',
+          dark:  '#1D4ED8',
+        },
+        // Logo orange — "Venza"
+        orange: {
+          brand: '#FF8200',
         },
       },
       fontFamily: {
         sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
       },
       animation: {
-        'glow-gold': 'glow-gold 2s ease-in-out infinite alternate',
-        'shimmer': 'shimmer 3s linear infinite',
-        'float': 'float 3s ease-in-out infinite',
+        'glow-gold':  'glow-cyan 2s ease-in-out infinite alternate',
+        'shimmer':    'shimmer 3s linear infinite',
+        'float':      'float 3s ease-in-out infinite',
+        'pulse-slow': 'pulse 4s cubic-bezier(0.4,0,0.6,1) infinite',
       },
       keyframes: {
-        'glow-gold': {
+        'glow-cyan': {
           '0%': {
             boxShadow:
-              '0 0 8px rgba(201,169,97,0.2), 0 0 16px rgba(201,169,97,0.08)',
+              '0 0 8px rgba(0,212,232,0.2), 0 0 16px rgba(0,212,232,0.08)',
           },
           '100%': {
             boxShadow:
-              '0 0 24px rgba(201,169,97,0.55), 0 0 48px rgba(201,169,97,0.28), 0 0 96px rgba(201,169,97,0.12)',
+              '0 0 24px rgba(0,212,232,0.55), 0 0 48px rgba(0,212,232,0.28), 0 0 96px rgba(37,99,235,0.12)',
           },
         },
         shimmer: {
@@ -53,7 +66,11 @@ const config: Config = {
         },
       },
       backgroundImage: {
-        'gold-radial': 'radial-gradient(ellipse at top, rgba(201,169,97,0.08) 0%, transparent 60%)',
+        'gold-radial':  'radial-gradient(ellipse at top, rgba(0,212,232,0.08) 0%, transparent 60%)',
+        'cyan-radial':  'radial-gradient(ellipse at top, rgba(0,212,232,0.08) 0%, transparent 60%)',
+        'grad-hero':    'radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,212,232,0.15) 0%, transparent 70%)',
+        'grad-btn':     'linear-gradient(135deg, #00D4E8 0%, #2563EB 100%)',
+        'grid-dots':    'linear-gradient(rgba(0,212,232,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,232,0.04) 1px, transparent 1px)',
       },
     },
   },

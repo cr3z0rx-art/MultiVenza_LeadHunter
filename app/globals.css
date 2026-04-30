@@ -16,24 +16,33 @@
     font-feature-settings: 'ss01', 'ss02', 'cv01';
   }
 
-  /* Premium scrollbar */
+  /* Cyan scrollbar — matches multivenzadigital.com */
   ::-webkit-scrollbar       { width: 3px; height: 3px; }
-  ::-webkit-scrollbar-track { @apply bg-navy-950; }
-  ::-webkit-scrollbar-thumb { @apply bg-navy-700 rounded-full; }
-  ::-webkit-scrollbar-thumb:hover { @apply bg-navy-600; }
+  ::-webkit-scrollbar-track { background: #080D14; }
+  ::-webkit-scrollbar-thumb { background: #00D4E8; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: #00B8CA; }
 }
 
 @layer utilities {
-  /* Gold shimmer overlay — applied as absolute child, clip with overflow-hidden on parent */
+  /* Cyan shimmer overlay for Diamond cards */
   .shimmer-gold {
     background: linear-gradient(
       105deg,
       transparent 35%,
-      rgba(201, 169, 97, 0.75) 50%,
+      rgba(0, 212, 232, 0.35) 50%,
       transparent 65%
     );
     background-size: 200% 100%;
     animation: shimmer-move 3s linear infinite;
+  }
+
+  /* Glass card — website style */
+  .glass {
+    background: rgba(13, 20, 32, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 212, 232, 0.12);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
   }
 
   /* Blur + grayscale placeholder for locked protected fields */
@@ -48,26 +57,26 @@
   .pt-safe { padding-top:    env(safe-area-inset-top);    }
 }
 
-/* ── Keyframes (used via inline style or @layer utilities) ── */
+/* ── Keyframes ── */
 
 @keyframes shimmer-move {
   0%   { transform: translateX(-150%); }
   100% { transform: translateX(150%); }
 }
 
-@keyframes glow-gold {
+@keyframes glow-cyan {
   0% {
     box-shadow:
-      0 0  8px rgba(201,169,97,0.20),
-      0 0 16px rgba(201,169,97,0.08),
-      inset 0 1px 0 rgba(201,169,97,0.06);
+      0 0  8px rgba(0,212,232,0.20),
+      0 0 16px rgba(0,212,232,0.08),
+      inset 0 1px 0 rgba(0,212,232,0.06);
   }
   100% {
     box-shadow:
-      0 0 24px rgba(201,169,97,0.55),
-      0 0 48px rgba(201,169,97,0.28),
-      0 0 96px rgba(201,169,97,0.12),
-      inset 0 1px 0 rgba(201,169,97,0.12);
+      0 0 24px rgba(0,212,232,0.55),
+      0 0 48px rgba(0,212,232,0.28),
+      0 0 96px rgba(37,99,235,0.12),
+      inset 0 1px 0 rgba(0,212,232,0.12);
   }
 }
 
