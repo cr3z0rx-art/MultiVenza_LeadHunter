@@ -1,5 +1,4 @@
-import { LeadFilters } from '@/components/leads/LeadFilters'
-import { LeadFeed } from '@/components/leads/LeadFeed'
+import { DashboardShell } from '@/components/layout/DashboardShell'
 import { fetchLeads } from '@/app/actions'
 import type { LeadFilters as Filters, LeadTier, LeadState, ProjectType } from '@/lib/types/lead'
 
@@ -29,14 +28,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const { leads: initialLeads, count } = await fetchLeads(filters, 0, PAGE_SIZE - 1)
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-      <LeadFilters activeFilters={filters} totalCount={count} />
-      <LeadFeed
-        initialLeads={initialLeads}
-        totalCount={count}
-        filters={filters}
-        pageSize={PAGE_SIZE}
-      />
-    </div>
+    <DashboardShell
+      filters={filters}
+      initialLeads={initialLeads}
+      totalCount={count}
+      pageSize={PAGE_SIZE}
+    />
   )
 }

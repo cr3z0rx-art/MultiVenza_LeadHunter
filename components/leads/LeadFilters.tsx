@@ -9,6 +9,7 @@ import type { LeadFilters, LeadState, LeadTier, ProjectType } from '@/lib/types/
 interface LeadFiltersProps {
   activeFilters: LeadFilters
   totalCount:    number
+  onClose?:      () => void
 }
 
 type Opt<T> = { value: T; label: string }
@@ -45,7 +46,7 @@ const VALUATIONS = [
   { label: '>$250k', min: 250_000   },
 ]
 
-export function LeadFilters({ activeFilters, totalCount }: LeadFiltersProps) {
+export function LeadFilters({ activeFilters, totalCount, onClose }: LeadFiltersProps) {
   const router   = useRouter()
   const pathname = usePathname()
 
@@ -77,15 +78,26 @@ export function LeadFilters({ activeFilters, totalCount }: LeadFiltersProps) {
             ({totalCount.toLocaleString()})
           </span>
         </div>
-        {hasFilters && (
-          <button
-            onClick={clearAll}
-            className="text-xs text-slate-600 hover:text-slate-400 flex items-center gap-1 transition-colors"
-          >
-            <X className="w-3 h-3" />
-            Limpiar
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {hasFilters && (
+            <button
+              onClick={clearAll}
+              className="text-xs text-slate-600 hover:text-slate-400 flex items-center gap-1 transition-colors"
+            >
+              <X className="w-3 h-3" />
+              Limpiar
+            </button>
+          )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              aria-label="Cerrar filtros"
+              className="w-6 h-6 rounded-lg bg-navy-800 flex items-center justify-center text-slate-500 hover:text-white transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Estado ────────────────────────────────────────────────────────── */}

@@ -13,7 +13,7 @@ export function Header() {
           </div>
           <div className="leading-none">
             <span className="text-white font-bold text-sm tracking-tight">MultiVenza</span>
-            <span className="text-gold-500 font-bold text-sm"> Intelligence</span>
+            <span className="text-gold-500 font-bold text-sm"> LeadHunter</span>
           </div>
         </Link>
 
