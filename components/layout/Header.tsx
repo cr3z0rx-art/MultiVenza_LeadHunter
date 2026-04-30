@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Bell, Settings } from 'lucide-react'
+import { Bell, Settings, TrendingUp } from 'lucide-react'
 
 export function Header() {
   return (
@@ -22,8 +22,27 @@ export function Header() {
           </div>
         </Link>
 
+        {/* Navigation */}
+        <nav className="hidden md:flex items-center gap-6">
+          <Link href="/" className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-colors">
+            HotRadar
+          </Link>
+          <Link href="/insights" className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-colors flex items-center gap-2">
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+            Market Insights
+          </Link>
+        </nav>
+
         {/* Actions */}
         <div className="flex items-center gap-2">
+          {/* Mobile Insights Link */}
+          <Link 
+            href="/insights" 
+            className="md:hidden w-9 h-9 rounded-xl flex items-center justify-center text-emerald-400 hover:text-emerald-300 transition-colors border border-emerald-500/20 bg-emerald-500/5"
+            aria-label="Market Insights"
+          >
+            <TrendingUp className="w-4 h-4" />
+          </Link>
           <button
             aria-label="Notificaciones"
             className="relative w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors border"
