@@ -42,8 +42,28 @@ export async function POST(req: NextRequest) {
   // ── Upsert in chunks (dedup on permit_number) ────────────────────────────────
   for (let i = 0; i < leads.length; i += CHUNK_SIZE) {
     const chunk = leads.slice(i, i + CHUNK_SIZE).map(l => ({
-      ...l,
-      state: source_state, // enforce state from route param
+      // Explicit column list — prevents schema-cache errors if payload has extra fields
+      city:                l.city                ?? '',
+      zip_code:            l.zip_code            ?? null,
+      state:               source_state,
+      county:              l.county              ?? null,
+      project_type:        l.project_type        ?? 'Remodel',
+      estimated_valuation: l.estimated_valuation ?? 0,
+      tier:                l.tier                ?? 'standard',
+      score:               l.score               ?? 0,
+      tags:                l.tags                ?? [],
+      no_gc:               l.no_gc               ?? false,
+      roof_age:            l.roof_age            ?? null,
+      roof_classification: l.roof_classification ?? null,
+      permit_status:       l.permit_status       ?? null,
+      market_note:         l.market_note         ?? null,
+      exact_address:       l.exact_address       ?? null,
+      owner_name:          l.owner_name          ?? null,
+      phone:               l.phone               ?? null,
+      permit_number:       l.permit_number,
+      permit_date:         l.permit_date         ?? null,
+      government_source:   l.government_source   ?? null,
+      processed_at:        l.processed_at        ?? new Date().toISOString(),
     }))
 
     const { data, error } = await supabase
