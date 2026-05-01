@@ -31,7 +31,6 @@ export async function fetchHotLeads(): Promise<Lead[]> {
   let { data, error } = await supabase
     .from('leads')
     .select('*')
-    .gte('permit_date', cutoff)
     .order('estimated_valuation', { ascending: false })
     .limit(5)
 
@@ -39,7 +38,6 @@ export async function fetchHotLeads(): Promise<Lead[]> {
     const fallback = await supabase
       .from('leads')
       .select('*')
-      .gte('created_at', cutoff) // Fallback to created_at if permit_date fails
       .order('estimated_valuation', { ascending: false })
       .limit(5)
     data = fallback.data
@@ -55,12 +53,10 @@ export async function fetchLeads(
 ): Promise<{ leads: Lead[]; count: number }> {
   const supabase = createAdminClient()
 
-  const cutoff90d = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
-
+  // HARD RESET: Sin filtros de fecha ni valuación para debug total
   let q = supabase
     .from('leads')
     .select('*', { count: 'exact' })
-    .gte('permit_date', cutoff90d) // Ventana de 90 días para HotRadar
     .order('estimated_valuation', { ascending: false })
     .order('created_at',          { ascending: false })
     .range(from, to)
@@ -69,16 +65,16 @@ export async function fetchLeads(
   if (filters.county       && filters.county       !== 'all') q = q.eq('county', filters.county)
   if (filters.tier         && filters.tier         !== 'all') q = q.eq('tier',  filters.tier)
   if (filters.project_type && filters.project_type !== 'all') q = q.eq('project_type', filters.project_type)
-  if (filters.min_valuation) q = q.gte('estimated_valuation', filters.min_valuation)
-  if (filters.max_valuation) q = q.lte('estimated_valuation', filters.max_valuation)
+  // if (filters.min_valuation) q = q.gte('estimated_valuation', filters.min_valuation)
+  // if (filters.max_valuation) q = q.lte('estimated_valuation', filters.max_valuation)
   if (filters.no_gc_only)    q = q.eq('no_gc', true)
 
   const { data, count, error } = await q
 
-  console.log(`[fetchLeads] Filters:`, JSON.stringify(filters), `| Found: ${count} | Errors: ${error?.message || 'none'}`)
+  console.log(`[HARD RESET] Supabase response: count=${count}, dataLength=${data?.length}, error=${error?.message || 'none'}`)
 
   if (error) {
-    console.error('[fetchLeads]', error.message)
+    console.error('[fetchLeads ERROR]', error.message)
     return { leads: [], count: 0 }
   }
 
