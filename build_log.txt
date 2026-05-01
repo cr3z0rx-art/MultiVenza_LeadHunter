@@ -1,0 +1,72 @@
+
+> multivenza-leadhunter@1.0.0 build
+> next build
+
+  ▲ Next.js 14.2.29
+  - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/8) ...
+   Generating static pages (2/8) 
+Error: supabaseUrl is required.
+    at C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\chunks\802.js:37:51291
+    at new rW (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\chunks\802.js:37:51542)
+    at rK (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\chunks\802.js:37:55329)
+    at i (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\app\(dashboard)\insights\page.js:1:140499)
+    at _ (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\app\(dashboard)\insights\page.js:1:112328)
+    at C (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\app\(dashboard)\insights\page.js:1:117517)
+    at eh (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:134660)
+    at e (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:137545)
+    at ek (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:138019)
+    at Array.toJSON (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:135629) {
+  digest: '94380436'
+}
+Error: supabaseUrl is required.
+    at C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\chunks\802.js:37:51291
+    at new rW (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\chunks\802.js:37:51542)
+    at rK (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\chunks\802.js:37:55329)
+    at i (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\app\(dashboard)\insights\page.js:1:140499)
+    at _ (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\app\(dashboard)\insights\page.js:1:112328)
+    at C (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\app\(dashboard)\insights\page.js:1:117517)
+    at eh (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:134660)
+    at e (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:137545)
+    at ek (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:138019)
+    at Array.toJSON (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:135629) {
+  digest: '94380436'
+}
+Error: supabaseUrl is required.
+    at C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\chunks\802.js:37:51291
+    at new rW (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\chunks\802.js:37:51542)
+    at rK (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\chunks\802.js:37:55329)
+    at i (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\app\(dashboard)\insights\page.js:1:140499)
+    at _ (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\app\(dashboard)\insights\page.js:1:112328)
+    at C (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\app\(dashboard)\insights\page.js:1:117517)
+    at eh (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:134660)
+    at e (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:137545)
+    at ek (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:138019)
+    at Array.toJSON (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:135629) {
+  digest: '94380436'
+}
+
+Error occurred prerendering page "/insights". Read more: https://nextjs.org/docs/messages/prerender-error
+
+Error: supabaseUrl is required.
+    at C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\chunks\802.js:37:51291
+    at new rW (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\chunks\802.js:37:51542)
+    at rK (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\chunks\802.js:37:55329)
+    at i (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\app\(dashboard)\insights\page.js:1:140499)
+    at _ (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\app\(dashboard)\insights\page.js:1:112328)
+    at C (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\.next\server\app\(dashboard)\insights\page.js:1:117517)
+    at eh (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:134660)
+    at e (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:137545)
+    at ek (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:138019)
+    at Array.toJSON (C:\Users\yildr\Desktop\MultiVenza_LeadHunter\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:135629)
+   Generating static pages (4/8) 
+   Generating static pages (6/8) 
+ ✓ Generating static pages (8/8)
+
+> Export encountered errors on following paths:
+	/(dashboard)/insights/page: /insights

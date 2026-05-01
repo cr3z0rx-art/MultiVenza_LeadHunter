@@ -1,0 +1,11 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/leads/unlock-phone/route": "app/api/leads/unlock-phone/route.js",
+  "/api/sync/route": "app/api/sync/route.js",
+  "/manifest.webmanifest/route": "app/manifest.webmanifest/route.js",
+  "/api/debug/route": "app/api/debug/route.js",
+  "/api/fix-zips/route": "app/api/fix-zips/route.js",
+  "/api/export/route": "app/api/export/route.js",
+  "/(dashboard)/insights/page": "app/(dashboard)/insights/page.js",
+  "/(dashboard)/page": "app/(dashboard)/page.js"
+}

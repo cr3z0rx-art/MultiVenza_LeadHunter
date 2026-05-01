@@ -423,6 +423,14 @@ export default async function InsightsPage() {
               Inteligencia competitiva — mapa de calor nacional, saturación territorial,
               leads de rescate y análisis de dominio por zona.
             </p>
+            <div className="flex flex-wrap gap-3 mt-5">
+              <a href="/api/export?type=hot-leads" className="px-4 py-2 bg-gradient-to-r from-gold-500 to-amber-500 text-black text-[11px] font-black uppercase tracking-widest rounded-xl flex items-center gap-2 hover:scale-105 transition-transform shadow-[0_0_15px_rgba(251,191,36,0.3)]">
+                Exportar Hot Leads (GHL)
+              </a>
+              <a href="/api/export?type=b2b-texas" className="px-4 py-2 bg-navy-800 text-white text-[11px] font-bold uppercase tracking-widest rounded-xl border border-navy-700 flex items-center gap-2 hover:bg-navy-700 transition-colors">
+                Lista B2B Texas (Subcontrato)
+              </a>
+            </div>
           </div>
           <div className="px-4 py-2 rounded-xl bg-navy-800/50 border border-navy-700 text-[10px] uppercase tracking-[0.2em] font-bold text-slate-500">
             90 días · {new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
