@@ -96,7 +96,10 @@ export async function GET() {
   if (toUpdate.length > 0) {
     for (let i = 0; i < toUpdate.length; i += 500) {
       const chunk = toUpdate.slice(i, i + 500)
-      await supabase.from('competitor_analysis').upsert(chunk, { onConflict: 'permit_number' })
+      const { error: upsertError } = await supabase.from('competitor_analysis').upsert(chunk, { onConflict: 'permit_number' })
+      if (upsertError) {
+        return NextResponse.json({ error: 'Upsert failed', details: upsertError }, { status: 500 })
+      }
     }
   }
 
