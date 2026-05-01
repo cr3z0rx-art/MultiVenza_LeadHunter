@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Building2, TrendingUp, MapPin, AlertTriangle, BarChart3, Users, Shield, Zap, Clock, Activity, Star, Flame } from 'lucide-react'
+import ContractorSearch from '@/components/insights/ContractorSearch'
 // import USHeatMap from '@/components/insights/USHeatMap'
 // import type { StateMapData } from '@/components/insights/USHeatMap'
 
@@ -571,9 +572,10 @@ export default async function InsightsPage() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
-            {/* Contratistas Sobrecargados */}
+            {/* LLC Search Intelligence — first */}
+            <ContractorSearch />
             <div className="rounded-2xl border overflow-hidden"
                  style={{ background: 'rgba(239,68,68,0.03)', borderColor: 'rgba(239,68,68,0.15)' }}>
               <div className="px-5 py-4 border-b flex items-center justify-between"
