@@ -44,7 +44,8 @@ export async function GET() {
   const { data: records, error } = await supabase
     .from('competitor_analysis')
     .select('id, permit_number, contractor_name, city, state, zip_code, valuation, project_type')
-    .limit(5000)
+    .is('investment_range', null)
+    .limit(1000)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
