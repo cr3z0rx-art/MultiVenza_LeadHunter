@@ -74,6 +74,7 @@ export async function GET() {
     } else {
       seenKeys.add(dedupKey)
       toUpdate.push({
+        id: r.id,
         permit_number: r.permit_number,
         contractor_name: cName,
         city: city,
