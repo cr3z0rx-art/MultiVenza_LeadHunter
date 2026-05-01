@@ -66,13 +66,13 @@ export async function POST(req: NextRequest) {
       processed_at:        l.processed_at        ?? new Date().toISOString(),
     }))
 
-    console.log('--- UPSERT CHUNK ---', JSON.stringify(chunk[0], null, 2));
     const { data, error } = await supabase
       .from('leads')
       .upsert(chunk, { onConflict: 'permit_number', ignoreDuplicates: false })
       .select('permit_number')
 
     if (error) {
+      console.error('[sync] leads upsert error:', error.message)
       result.errors.push(`chunk ${Math.floor(i / CHUNK_SIZE)}: ${error.message}`)
       result.skipped += chunk.length
     } else {
@@ -80,68 +80,65 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Upsert competitors ───────────────────────────────────────────────────────
+  // ── Upsert competitors (best-effort — table may not exist yet) ───────────────
   if (competitors?.length) {
-    for (let i = 0; i < competitors.length; i += CHUNK_SIZE) {
-      const chunk = competitors.slice(i, i + CHUNK_SIZE).map((c: any) => ({
-        batch_id:        batch_id ?? `auto-${Date.now()}`,
-        permit_number:   c.permitNumber,
-        state:           c.state || source_state,
-        county:          c.county,
-        city:            c.city,
-        contractor_name: c.contractorName,
-        project_type:    c.projectType,
-        valuation:       c.valuation,
-        permit_date:     c.permitDate
-      }));
-      
-      const { data, error } = await supabase
-        .from('competitor_analysis')
-        .upsert(chunk, { onConflict: 'permit_number', ignoreDuplicates: true })
-        .select('id');
-        
-      if (error) {
-        result.errors.push(`competitor chunk: ${error.message}`);
-      } else {
-        result.inserted += data?.length ?? 0
+    try {
+      for (let i = 0; i < competitors.length; i += CHUNK_SIZE) {
+        const chunk = competitors.slice(i, i + CHUNK_SIZE).map((c: any) => ({
+          permit_number:   c.permitNumber,
+          state:           c.state || source_state,
+          county:          c.county     ?? null,
+          city:            c.city       ?? null,
+          contractor_name: c.contractorName ?? null,
+          project_type:    c.projectType    ?? null,
+          valuation:       c.valuation      ?? 0,
+          permit_date:     c.permitDate     ?? null,
+        }))
+
+        const { error } = await supabase
+          .from('competitor_analysis')
+          .upsert(chunk, { onConflict: 'permit_number', ignoreDuplicates: true })
+
+        if (error) console.warn('[sync] competitor upsert skipped:', error.message)
       }
+    } catch (e: any) {
+      console.warn('[sync] competitor_analysis table not ready:', e.message)
     }
   }
 
-  // ── Log sync ─────────────────────────────────────────────────────────────────
-  await supabase.from('sync_logs').insert({
-    batch_id:         batch_id ?? `auto-${Date.now()}`,
-    source_state,
-    records_inserted: result.inserted,
-    records_updated:  result.updated,
-    records_skipped:  result.skipped,
-    scraper_source:   req.headers.get('x-scraper-source') ?? 'unknown',
-  })
-
-  let diamante_count = 0;
-  let oro_count = 0;
-  let plata_count = 0;
-  let total_revenue_potential = 0;
-
-  if (leads) {
-    leads.forEach((l: any) => {
-      if (l.tier === 'diamante') diamante_count++;
-      else if (l.tier === 'oro') oro_count++;
-      else plata_count++;
-      
-      total_revenue_potential += l.projected_profit || 0;
-    });
+  // ── Log sync (best-effort) ────────────────────────────────────────────────────
+  try {
+    await supabase.from('sync_logs').insert({
+      batch_id:         batch_id ?? `auto-${Date.now()}`,
+      source_state,
+      records_inserted: result.inserted,
+      records_updated:  result.updated,
+      records_skipped:  result.skipped,
+      scraper_source:   req.headers.get('x-scraper-source') ?? 'unknown',
+    })
+  } catch (e: any) {
+    console.warn('[sync] sync_logs insert skipped:', e.message)
   }
 
-  await supabase.from('lead_audit_logs').insert({
-    batch_id: batch_id ?? `auto-${Date.now()}`,
-    total_leads: leads?.length || 0,
-    diamante_count,
-    oro_count,
-    plata_count,
-    total_revenue_potential,
-    source_states: Array.from(new Set(leads?.map((l: any) => l.state || source_state) || [])).join(', ')
-  });
+  // ── Audit log (best-effort) ───────────────────────────────────────────────────
+  try {
+    let diamante_count = 0, oro_count = 0, plata_count = 0, total_revenue_potential = 0
+    leads?.forEach((l: any) => {
+      if (l.tier === 'diamante') diamante_count++
+      else if (l.tier === 'oro') oro_count++
+      else plata_count++
+      total_revenue_potential += l.projected_profit || 0
+    })
+
+    await supabase.from('lead_audit_logs').insert({
+      batch_id:                batch_id ?? `auto-${Date.now()}`,
+      total_leads:             leads?.length || 0,
+      diamante_count, oro_count, plata_count, total_revenue_potential,
+      source_states:           Array.from(new Set((leads ?? []).map((l: any) => l.state || source_state))).join(', '),
+    })
+  } catch (e: any) {
+    console.warn('[sync] lead_audit_logs insert skipped:', e.message)
+  }
 
   return NextResponse.json(result)
 }
