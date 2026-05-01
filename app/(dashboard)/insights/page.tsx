@@ -108,35 +108,47 @@ async function fetchAll(queryFn: (from: number, to: number) => any) {
 
 async function getVolumeMetrics(): Promise<VolumeMetrics> {
   const supabase = createAdminClient()
-  const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-  const [compData, leadsRes, noGcRes] = await Promise.all([
+  // Pull all leads (state + no_gc) for accurate by-state counts — uses fetchAll to bypass 1000-row cap
+  const [compData, leadsData] = await Promise.all([
     fetchAll((from, to) => supabase.from('competitor_analysis').select('state, valuation').range(from, to)),
-    supabase.from('leads').select('state', { count: 'exact', head: true }),
-    supabase.from('leads').select('state', { count: 'exact', head: true }).eq('no_gc', true),
+    fetchAll((from, to) => supabase.from('leads').select('state, no_gc').range(from, to)),
   ])
 
-  const totalPermits90d   = compData.length
+  const totalPermits90d   = compData.length + leadsData.length  // national total across both tables
   const totalValuation90d = compData.reduce((s, r) => s + (Number(r.valuation) || 0), 0)
-  const noGcOpportunities = noGcRes.count  ?? 0
-  const totalLeads        = leadsRes.count ?? 0
-  const noGcRate          = totalLeads > 0 ? Math.round((noGcOpportunities / totalLeads) * 100) : 0
 
-  const stateMap: Record<string, { permits: number }> = {}
+  // No-GC from leads table (authoritative)
+  const noGcOpportunities = leadsData.filter(r => r.no_gc).length
+  const noGcRate          = leadsData.length > 0 ? Math.round((noGcOpportunities / leadsData.length) * 100) : 0
+
+  // byState from leads table (always has correct 2-letter abbreviations: FL, TX, AZ, GA, IL, NC)
+  const stateLeads: Record<string, { permits: number; opportunities: number }> = {}
+  for (const r of leadsData) {
+    const s = (r.state as string) || 'Unknown'
+    if (!stateLeads[s]) stateLeads[s] = { permits: 0, opportunities: 0 }
+    stateLeads[s].permits++
+    if (r.no_gc) stateLeads[s].opportunities++
+  }
+
+  // Merge in competitor_analysis counts (adds FL permit volume not in leads)
+  const stateComp: Record<string, number> = {}
   for (const r of compData) {
-    const s = r.state || 'Unknown'
-    stateMap[s] = { permits: (stateMap[s]?.permits ?? 0) + 1 }
+    const s = (r.state as string) || ''
+    if (!s || s === 'Unknown') continue
+    stateComp[s] = (stateComp[s] ?? 0) + 1
   }
 
-  const { data: leadsAll } = await supabase.from('leads').select('state, no_gc')
-  const oppByState: Record<string, number> = {}
-  for (const r of leadsAll ?? []) {
-    if (r.no_gc) oppByState[r.state] = (oppByState[r.state] ?? 0) + 1
-  }
-
-  const byState = Object.entries(stateMap).map(([state, { permits }]) => ({
-    state, permits, opportunities: oppByState[state] ?? 0,
-  })).sort((a, b) => b.permits - a.permits)
+  // Combine: use leads as the primary source, add extra comp_analysis permits on top
+  const allStates = new Set([...Object.keys(stateLeads), ...Object.keys(stateComp)])
+  const byState = Array.from(allStates)
+    .filter(s => s && s !== 'Unknown')
+    .map(state => ({
+      state,
+      permits:       (stateLeads[state]?.permits ?? 0) + (stateComp[state] ?? 0),
+      opportunities: stateLeads[state]?.opportunities ?? 0,
+    }))
+    .sort((a, b) => b.permits - a.permits)
 
   return { totalPermits90d, totalValuation90d, noGcOpportunities, noGcRate, byState }
 }
@@ -500,18 +512,28 @@ export default async function InsightsPage() {
           </div>
 
           {volume.byState.length > 0 && (
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
-              {volume.byState.map(s => (
-                <div key={s.state} className="bg-navy-900/40 border border-navy-800 rounded-xl p-3 text-center">
-                  <p className="text-lg font-black text-white">{stateIcon(s.state)} {s.state}</p>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    <span className="text-white font-bold">{s.permits}</span> permisos
-                  </p>
-                  {s.opportunities > 0 && (
-                    <p className="text-[10px] mt-0.5" style={{ color: '#00D4E8' }}>{s.opportunities} No-GC</p>
-                  )}
-                </div>
-              ))}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {volume.byState.map(s => {
+                const isKey = ['FL','TX','AZ','GA','IL','NC'].includes(s.state)
+                return (
+                  <div key={s.state}
+                       className="bg-navy-900/60 border rounded-xl p-3 text-center min-w-[110px] flex-1"
+                       style={{ borderColor: isKey ? 'rgba(0,212,232,0.18)' : 'rgba(255,255,255,0.06)' }}>
+                    <p className="text-xl font-black text-white leading-none">{stateIcon(s.state)}</p>
+                    <p className="text-[11px] font-black text-slate-300 mt-1 tracking-widest">{s.state}</p>
+                    <p className="text-lg font-black tabular-nums mt-1" style={{ color: '#00D4E8' }}>
+                      {s.permits.toLocaleString()}
+                    </p>
+                    <p className="text-[9px] text-slate-600">leads</p>
+                    {s.opportunities > 0 && (
+                      <p className="text-[10px] font-bold mt-1 px-1.5 py-0.5 rounded-full inline-block"
+                         style={{ background: 'rgba(0,212,232,0.12)', color: '#00D4E8' }}>
+                        💎 {s.opportunities} No-GC
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </section>
