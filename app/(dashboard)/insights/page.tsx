@@ -101,7 +101,7 @@ async function getVolumeMetrics(): Promise<VolumeMetrics> {
   const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
   const [compData, leadsRes, noGcRes] = await Promise.all([
-    fetchAll((from, to) => supabase.from('competitor_analysis').select('state, valuation').gte('permit_date', cutoff).range(from, to)),
+    fetchAll((from, to) => supabase.from('competitor_analysis').select('state, valuation').range(from, to)),
     supabase.from('leads').select('state', { count: 'exact', head: true }),
     supabase.from('leads').select('state', { count: 'exact', head: true }).eq('no_gc', true),
   ])
@@ -137,9 +137,9 @@ async function getMapData(): Promise<StateMapData[]> {
   const cutoff30 = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
   const [compData, diamanteData, staleData] = await Promise.all([
-    fetchAll((from, to) => supabase.from('competitor_analysis').select('state, contractor_name').gte('permit_date', cutoff).range(from, to)),
+    fetchAll((from, to) => supabase.from('competitor_analysis').select('state, contractor_name').range(from, to)),
     fetchAll((from, to) => supabase.from('leads').select('state').or('tier.eq.diamante,no_gc.eq.true').range(from, to)),
-    fetchAll((from, to) => supabase.from('leads').select('state, permit_status').lte('permit_date', cutoff30).not('permit_date', 'is', null).range(from, to)),
+    fetchAll((from, to) => supabase.from('leads').select('state, permit_status').not('permit_date', 'is', null).range(from, to)),
   ])
 
   const stateMap: Record<string, StateMapData> = {}
@@ -196,7 +196,6 @@ async function getSaturationData(): Promise<OverloadedContractor[]> {
     supabase
       .from('competitor_analysis')
       .select('contractor_name, zip_code, city, state')
-      .gte('permit_date', cutoff)
       .not('contractor_name', 'is', null)
       .not('zip_code', 'is', null)
       .range(from, to)
@@ -268,7 +267,6 @@ async function getZipHeatData(): Promise<ZipHeatEntry[]> {
     supabase
       .from('competitor_analysis')
       .select('zip_code, city, state')
-      .gte('permit_date', cutoff)
       .not('zip_code', 'is', null)
       .range(from, to)
   )
@@ -301,7 +299,6 @@ async function getTerritoryData(): Promise<ZoneData[]> {
     supabase
       .from('competitor_analysis')
       .select('city, state, contractor_name, valuation')
-      .gte('permit_date', cutoff)
       .not('contractor_name', 'is', null)
       .not('city', 'is', null)
       .range(from, to)
