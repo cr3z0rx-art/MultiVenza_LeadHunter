@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
           state:           c.state || source_state,
           county:          c.county     ?? null,
           city:            c.city       ?? null,
+          zip_code:        c.zipCode    ?? null,
           contractor_name: c.contractorName ?? null,
           project_type:    c.projectType    ?? null,
           valuation:       c.valuation      ?? 0,

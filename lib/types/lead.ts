@@ -81,6 +81,7 @@ export interface SyncPayload {
     state: string
     county?: string
     city?: string
+    zipCode?: string
     contractorName: string
     projectType: string
     valuation: number

@@ -264,6 +264,7 @@ async function syncCompetitors(records, state) {
         state:          r.state,
         county:         r.county,
         city:           r.city,
+        zipCode:        r.zip || null,
         contractorName: r.contractorName,
         projectType:    r.permitType,
         valuation:      r.valuation,
