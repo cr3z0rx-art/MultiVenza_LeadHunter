@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Menu } from 'lucide-react'
+import { Menu, Search } from 'lucide-react'
 import { LeadFilters } from '@/components/leads/LeadFilters'
 import { LeadFeed }    from '@/components/leads/LeadFeed'
 import { HotRadar }    from '@/components/leads/HotRadar'
+import ContractorSearch from '@/components/insights/ContractorSearch'
 import type { Lead, LeadFilters as Filters, DailyStats } from '@/lib/types/lead'
 
 interface DashboardShellProps {
@@ -82,7 +83,9 @@ export function DashboardShell({
 
           <div className="flex flex-col xl:flex-row gap-10">
             {/* Lead feed */}
-            <div className="flex-1 min-w-0 max-w-[800px]">
+            <div className="flex-1 min-w-0 max-w-[800px] space-y-5">
+              {/* LLC Search Intelligence — collapsible */}
+              <ContractorSearchWidget />
               <LeadFeed
                 initialLeads={initialLeads}
                 totalCount={totalCount}
@@ -101,6 +104,30 @@ export function DashboardShell({
         </div>
       </main>
 
+    </div>
+  )
+}
+
+function ContractorSearchWidget() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="rounded-2xl border border-navy-800 overflow-hidden">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-navy-800/50 transition-colors"
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold text-slate-400">
+          <Search className="w-4 h-4 text-cyan-500" />
+          LLC Search Intelligence
+          <span className="text-[10px] font-normal text-slate-600 ml-1">buscar contratistas en la BD</span>
+        </span>
+        <span className="text-[10px] text-slate-600">{open ? '▲ Cerrar' : '▼ Abrir'}</span>
+      </button>
+      {open && (
+        <div className="border-t border-navy-800">
+          <ContractorSearch />
+        </div>
+      )}
     </div>
   )
 }

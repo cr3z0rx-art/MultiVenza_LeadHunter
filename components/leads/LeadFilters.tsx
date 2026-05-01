@@ -31,15 +31,54 @@ const STATES: Opt<LeadState | 'all'>[] = [
   { value: 'NC',  label: '🌲 NC' },
 ]
 
-const COUNTIES: Opt<string | 'all'>[] = [
-  { value: 'all',        label: 'Todos' },
-  { value: 'Hillsborough', label: 'Hillsborough' },
-  { value: 'Sarasota',   label: 'Sarasota' },
-  { value: 'Miami-Dade', label: 'Miami-Dade' },
-  { value: 'Orange',     label: 'Orange' },
-  { value: 'Palm Beach', label: 'Palm Beach' },
-  { value: 'Fulton',     label: 'Fulton' },
-]
+const COUNTIES_BY_STATE: Record<string, { value: string; label: string }[]> = {
+  all: [
+    { value: 'all',           label: 'Todos' },
+  ],
+  FL: [
+    { value: 'all',           label: 'Todos' },
+    { value: 'Hillsborough',  label: 'Hillsborough' },
+    { value: 'Sarasota',      label: 'Sarasota' },
+    { value: 'Miami-Dade',    label: 'Miami-Dade' },
+    { value: 'Orange',        label: 'Orange' },
+    { value: 'Palm Beach',    label: 'Palm Beach' },
+    { value: 'Broward',       label: 'Broward' },
+    { value: 'Pinellas',      label: 'Pinellas' },
+  ],
+  TX: [
+    { value: 'all',           label: 'Todos' },
+    { value: 'Harris',        label: 'Harris (Houston)' },
+    { value: 'Dallas',        label: 'Dallas' },
+    { value: 'Travis',        label: 'Travis (Austin)' },
+    { value: 'Bexar',         label: 'Bexar (San Antonio)' },
+    { value: 'Tarrant',       label: 'Tarrant (Fort Worth)' },
+  ],
+  AZ: [
+    { value: 'all',           label: 'Todos' },
+    { value: 'Maricopa',      label: 'Maricopa (Phoenix)' },
+    { value: 'Pima',          label: 'Pima (Tucson)' },
+    { value: 'Pinal',         label: 'Pinal' },
+  ],
+  GA: [
+    { value: 'all',           label: 'Todos' },
+    { value: 'Fulton',        label: 'Fulton (Atlanta)' },
+    { value: 'DeKalb',        label: 'DeKalb' },
+    { value: 'Gwinnett',      label: 'Gwinnett' },
+    { value: 'Cobb',          label: 'Cobb' },
+  ],
+  IL: [
+    { value: 'all',           label: 'Todos' },
+    { value: 'Cook',          label: 'Cook (Chicago)' },
+    { value: 'DuPage',        label: 'DuPage' },
+    { value: 'Lake',          label: 'Lake' },
+  ],
+  NC: [
+    { value: 'all',           label: 'Todos' },
+    { value: 'Mecklenburg',   label: 'Mecklenburg (Charlotte)' },
+    { value: 'Wake',          label: 'Wake (Raleigh)' },
+    { value: 'Guilford',      label: 'Guilford (Greensboro)' },
+  ],
+}
 
 const TIERS: Opt<LeadTier | 'all'>[] = [
   { value: 'all',      label: 'Todos'    },
@@ -74,6 +113,8 @@ export function LeadFilters({ activeFilters, totalCount, dailyStats, onClose }: 
     const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
     if (value && value !== 'all') params.set(key, value)
     else params.delete(key)
+    // When switching state, always clear county to avoid stale cross-state filter
+    if (key === 'state') params.delete('county')
     router.push(`${pathname}?${params.toString()}`, { scroll: false })
   }, [router, pathname])
 
@@ -167,8 +208,8 @@ export function LeadFilters({ activeFilters, totalCount, dailyStats, onClose }: 
       </FilterRow>
 
       {/* ── Condado ───────────────────────────────────────────────────────── */}
-      <FilterRow label="Condado">
-        {COUNTIES.map(o => (
+      <FilterRow label={`Condado ${activeFilters.state && activeFilters.state !== 'all' ? `· ${activeFilters.state}` : ''}`}>
+        {(COUNTIES_BY_STATE[activeFilters.state || 'all'] ?? COUNTIES_BY_STATE.all).map(o => (
           <Chip
             key={o.value}
             label={o.label}

@@ -65,8 +65,8 @@ export async function fetchLeads(
   if (filters.county       && filters.county       !== 'all') q = q.eq('county', filters.county)
   if (filters.tier         && filters.tier         !== 'all') q = q.eq('tier',  filters.tier)
   if (filters.project_type && filters.project_type !== 'all') q = q.eq('project_type', filters.project_type)
-  // if (filters.min_valuation) q = q.gte('estimated_valuation', filters.min_valuation)
-  // if (filters.max_valuation) q = q.lte('estimated_valuation', filters.max_valuation)
+  if (filters.min_valuation) q = q.gte('estimated_valuation', filters.min_valuation)
+  if (filters.max_valuation) q = q.lte('estimated_valuation', filters.max_valuation)
   if (filters.no_gc_only)    q = q.eq('no_gc', true)
 
   const { data, count, error } = await q

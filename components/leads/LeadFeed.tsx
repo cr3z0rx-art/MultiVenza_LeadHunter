@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useInView } from 'react-intersection-observer'
 import { AnimatePresence } from 'framer-motion'
 import { fetchLeads } from '@/app/actions'
@@ -19,6 +19,17 @@ export function LeadFeed({ initialLeads, totalCount, filters, pageSize }: LeadFe
   const [page,      setPage]      = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [hasMore,   setHasMore]   = useState(initialLeads.length < totalCount)
+  const filtersKey = JSON.stringify(filters)
+  const prevFiltersKey = useRef(filtersKey)
+
+  // Reset feed when filters change (URL param change triggers re-render with new initialLeads)
+  useEffect(() => {
+    if (prevFiltersKey.current === filtersKey) return
+    prevFiltersKey.current = filtersKey
+    setLeads(initialLeads)
+    setPage(1)
+    setHasMore(initialLeads.length < totalCount)
+  }, [filtersKey, initialLeads, totalCount])
 
   const loadMore = useCallback(async () => {
     if (isLoading || !hasMore) return
