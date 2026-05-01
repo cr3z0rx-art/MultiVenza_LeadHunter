@@ -87,9 +87,9 @@ async function fetchAll(queryFn: (from: number, to: number) => any) {
   let page = 0
   let hasMore = true
 
-  // Fetch in parallel chunks for speed (up to 15,000 records = 15 chunks)
+  // Fetch in parallel chunks for speed (up to 25,000 records = 25 chunks)
   const chunks = await Promise.all(
-    Array.from({ length: 15 }).map((_, i) => {
+    Array.from({ length: 25 }).map((_, i) => {
       const from = i * PAGE_SIZE
       const to   = from + PAGE_SIZE - 1
       return queryFn(from, to)
@@ -233,20 +233,25 @@ async function getSaturationData(): Promise<OverloadedContractor[]> {
 
 async function getRescueLeads(): Promise<RescueLead[]> {
   const supabase = createAdminClient()
-  const cutoff30 = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const cutoffTime = Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000
 
   const { data } = await supabase
     .from('leads')
     .select('id, city, state, project_type, permit_number, permit_date, permit_status, no_gc, tier')
-    .lte('permit_date', cutoff30)
     .not('permit_date', 'is', null)
+    .order('id', { ascending: false })
+    .limit(5000)
 
   if (!data?.length) return []
 
   return data
     .filter(r => {
       const status = ((r.permit_status as string) || '').toLowerCase().trim()
-      return !FINALED_STATUSES.some(s => status.includes(s))
+      if (FINALED_STATUSES.some(s => status.includes(s))) return false
+      
+      const pd = new Date(r.permit_date as string).getTime()
+      if (isNaN(pd)) return false
+      return pd <= cutoffTime
     })
     .map(r => ({
       id:            r.id as string,
@@ -413,7 +418,7 @@ export default async function InsightsPage() {
       <div className="p-6 md:p-10 max-w-[1400px] mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
         {/* ── Header ─────────────────────────────────────────────────────────── */}
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-navy-800 pb-8">
+        <header className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-navy-800 pb-8">
           <div>
             <h1 className="text-3xl font-black text-white flex items-center gap-3 tracking-tight">
               <BarChart3 className="w-8 h-8 text-gold-400" />
@@ -423,17 +428,19 @@ export default async function InsightsPage() {
               Inteligencia competitiva — mapa de calor nacional, saturación territorial,
               leads de rescate y análisis de dominio por zona.
             </p>
-            <div className="flex flex-wrap gap-3 mt-5">
-              <a href="/api/export?type=hot-leads" className="px-4 py-2 bg-gradient-to-r from-gold-500 to-amber-500 text-black text-[11px] font-black uppercase tracking-widest rounded-xl flex items-center gap-2 hover:scale-105 transition-transform shadow-[0_0_15px_rgba(251,191,36,0.3)]">
-                Exportar Hot Leads (GHL)
+          </div>
+          <div className="flex flex-col md:items-end gap-3">
+            <div className="px-4 py-2 rounded-xl bg-navy-800/50 border border-navy-700 text-[10px] uppercase tracking-[0.2em] font-bold text-slate-500">
+              90 días · {new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <a href="/api/export?type=hot-leads" className="px-3 py-1.5 bg-navy-800/80 text-gold-400 border border-navy-700 text-[10px] font-bold uppercase tracking-wider rounded hover:bg-navy-700 transition-colors">
+                Exportar Hot Leads
               </a>
-              <a href="/api/export?type=b2b-texas" className="px-4 py-2 bg-navy-800 text-white text-[11px] font-bold uppercase tracking-widest rounded-xl border border-navy-700 flex items-center gap-2 hover:bg-navy-700 transition-colors">
-                Lista B2B Texas (Subcontrato)
+              <a href="/api/export?type=b2b-texas" className="px-3 py-1.5 bg-navy-800/80 text-white border border-navy-700 text-[10px] font-bold uppercase tracking-wider rounded hover:bg-navy-700 transition-colors">
+                Lista B2B Texas
               </a>
             </div>
-          </div>
-          <div className="px-4 py-2 rounded-xl bg-navy-800/50 border border-navy-700 text-[10px] uppercase tracking-[0.2em] font-bold text-slate-500">
-            90 días · {new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
           </div>
         </header>
 
