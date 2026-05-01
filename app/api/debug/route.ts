@@ -9,9 +9,10 @@ export async function GET() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data } = await supabase.from('competitor_analysis').select('*').is('zip_code', null).limit(10)
+  const { data, error } = await supabase.from('competitor_analysis').select('*').is('zip_code', null).limit(10)
   
   return NextResponse.json({
-    sample: data
+    sample: data,
+    error
   })
 }
