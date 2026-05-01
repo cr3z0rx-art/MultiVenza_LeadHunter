@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Building2, TrendingUp, MapPin, AlertTriangle, BarChart3, Users, Shield, Zap, Clock, Activity, Star, Flame } from 'lucide-react'
-import USHeatMap from '@/components/insights/USHeatMap'
-import type { StateMapData } from '@/components/insights/USHeatMap'
+// import USHeatMap from '@/components/insights/USHeatMap'
+// import type { StateMapData } from '@/components/insights/USHeatMap'
 
 export const metadata = {
   title: 'Market Insights | MultiVenza LeadHunter',
@@ -10,6 +10,15 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
+
+export interface StateMapData {
+  state:      string
+  permits90d: number
+  diamante:   number
+  overloaded: number
+  stale:      number
+  topGC:      string | null
+}
 
 const OVERLOAD_THRESHOLD = 5
 const STALE_DAYS         = 30
@@ -387,9 +396,9 @@ function heatText(pct: number): string {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function InsightsPage() {
-  const [volume, mapData, saturation, rescueLeads, territories, zipHeat] = await Promise.all([
+  const [volume, saturation, rescueLeads, territories, zipHeat] = await Promise.all([
     getVolumeMetrics(),
-    getMapData(),
+    // getMapData(),
     getSaturationData(),
     getRescueLeads(),
     getTerritoryData(),
@@ -491,7 +500,8 @@ export default async function InsightsPage() {
           )}
         </section>
 
-        {/* ── Mapa de Calor Nacional ─────────────────────────────────────────── */}
+        {/* ── Mapa de Calor Nacional (Desactivado para Nivel 2) ──────────────── */}
+        {/* 
         <section>
           <div className="flex items-center gap-2 mb-5">
             <Flame className="w-4 h-4 text-gold-400" />
@@ -501,6 +511,7 @@ export default async function InsightsPage() {
           </div>
           <USHeatMap data={mapData} />
         </section>
+        */}
 
         {/* ── ZIP Heat Tiles ─────────────────────────────────────────────────── */}
         {zipHeat.length > 0 && (
