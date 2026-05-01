@@ -81,10 +81,12 @@ export async function GET(req: Request) {
     const val = r.valuation || r.estimated_valuation || 0
     updatedRecord.investment_range = getInvestmentRange(val)
 
-    // Deduplication key
+    // Deduplication key: prioritized by permit_number
+    const name = r.contractor_name || r.owner_name || ''
     const addr = r.exact_address || r.address || r.city || ''
+    const pNum = r.permit_number || ''
     const proj = r.project_type || ''
-    const dedupKey = `${cleanString(addr)}_${cleanString(proj)}`.toLowerCase()
+    const dedupKey = pNum ? pNum.toLowerCase() : `${cleanString(name)}_${cleanString(addr)}_${cleanString(proj)}`.toLowerCase()
     
     if (seenKeys.has(dedupKey)) {
       toDelete.push(r.id)
