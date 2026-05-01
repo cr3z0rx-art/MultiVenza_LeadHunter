@@ -31,8 +31,12 @@ const SCRAPER_SOURCE = process.env.SAAS_SCRAPER_SOURCE || 'multivenza-leadhunter
 
 // ── Tier ──────────────────────────────────────────────────────────────────────
 
-/** Diamond si TPV > $15k (regla del SaaS). */
-function _tier(tpv) {
+/**
+ * Tier logic: No-GC siempre es Diamante (acceso directo al dueño = señal máxima).
+ * Sin No-GC: tier por TPV.
+ */
+function _tier(tpv, noGC) {
+  if (noGC)         return 'diamante';
   if (tpv > 70_000) return 'diamante';
   if (tpv >= 30_000) return 'oro';
   return 'plata';
@@ -67,7 +71,7 @@ function _mapFLLead(lead, sourceState) {
     county:              lead.county       || null,
     project_type:        _FL_CATEGORY_MAP[lead.category] || 'Remodel',
     estimated_valuation: tpv,
-    tier:                lead.tier ? lead.tier.toLowerCase() : _tier(tpv),
+    tier:                _tier(tpv, lead.flags?.noGC ?? false),
     score:               lead.score        ?? 0,
     tags:                lead.tags         ?? [],
     no_gc:               lead.flags?.noGC  ?? false,

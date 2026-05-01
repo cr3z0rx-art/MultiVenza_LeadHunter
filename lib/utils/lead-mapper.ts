@@ -10,7 +10,10 @@ function computeScore(tier: LeadTier, valuation: number): number {
 }
 
 export function toFrontendLead(row: Record<string, unknown>): Lead {
-  const tier      = (row.tier as LeadTier) ?? 'plata'
+  const noGC      = (row.no_gc as boolean) ?? false
+  const dbTier    = (row.tier as LeadTier) ?? 'plata'
+  // No-GC always surfaces as Diamante regardless of DB tier value
+  const tier      = noGC && dbTier !== 'diamante' ? 'diamante' : dbTier
   const valuation = (row.estimated_valuation as number) ?? 0
 
   return {
@@ -25,7 +28,7 @@ export function toFrontendLead(row: Record<string, unknown>): Lead {
     tier,
     score:                (row.score as number)           ?? computeScore(tier, valuation),
     tags:                 Array.isArray(row.tags) ? (row.tags as string[]) : [],
-    no_gc:                (row.no_gc as boolean)          ?? false,
+    no_gc:                noGC,
     roof_age:             (row.roof_age as number)        ?? null,
     roof_classification:  (row.roof_classification as RoofClass) ?? null,
     permit_status:        (row.permit_status as string)   ?? null,
