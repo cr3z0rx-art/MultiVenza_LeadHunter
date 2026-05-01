@@ -44,9 +44,9 @@ interface ZoneData {
 }
 
 interface VolumeMetrics {
-  totalPermits90d:    number
+  totalPermits:       number   // volumen total del mercado detectado (90d)
+  activeLeads:        number   // leads Diamante No-GC disponibles
   totalValuation90d:  number
-  noGcOpportunities:  number
   noGcRate:           number
   byState: { state: string; permits: number; opportunities: number }[]
 }
@@ -108,21 +108,29 @@ async function fetchAll(queryFn: (from: number, to: number) => any) {
 
 async function getVolumeMetrics(): Promise<VolumeMetrics> {
   const supabase = createAdminClient()
+  const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-  // Pull all leads (state + no_gc) for accurate by-state counts — uses fetchAll to bypass 1000-row cap
   const [compData, leadsData] = await Promise.all([
-    fetchAll((from, to) => supabase.from('competitor_analysis').select('state, valuation').range(from, to)),
-    fetchAll((from, to) => supabase.from('leads').select('state, no_gc').range(from, to)),
+    // Explicit 90d window on competitor_analysis (FL + IL from historical scraper)
+    fetchAll((from, to) =>
+      supabase.from('competitor_analysis').select('state, valuation')
+        .gte('permit_date', cutoff).range(from, to)
+    ),
+    // All leads regardless of date (leads table is the authoritative No-GC source)
+    fetchAll((from, to) =>
+      supabase.from('leads').select('state, no_gc').range(from, to)
+    ),
   ])
 
-  const totalPermits90d   = compData.length + leadsData.length  // national total across both tables
+  // totalPermits = full market volume detected (GC permits in comp_analysis + all leads)
+  const totalPermits      = compData.length + leadsData.length
   const totalValuation90d = compData.reduce((s, r) => s + (Number(r.valuation) || 0), 0)
 
-  // No-GC from leads table (authoritative)
-  const noGcOpportunities = leadsData.filter(r => r.no_gc).length
-  const noGcRate          = leadsData.length > 0 ? Math.round((noGcOpportunities / leadsData.length) * 100) : 0
+  // activeLeads = Diamante opportunities (No-GC = direct owner access)
+  const activeLeads = leadsData.filter(r => r.no_gc).length
+  const noGcRate    = leadsData.length > 0 ? Math.round((activeLeads / leadsData.length) * 100) : 0
 
-  // byState from leads table (always has correct 2-letter abbreviations: FL, TX, AZ, GA, IL, NC)
+  // Per-state breakdown: leads table is authoritative for FL/TX/AZ/GA/IL/NC
   const stateLeads: Record<string, { permits: number; opportunities: number }> = {}
   for (const r of leadsData) {
     const s = (r.state as string) || 'Unknown'
@@ -131,7 +139,7 @@ async function getVolumeMetrics(): Promise<VolumeMetrics> {
     if (r.no_gc) stateLeads[s].opportunities++
   }
 
-  // Merge in competitor_analysis counts (adds FL permit volume not in leads)
+  // Add competitor_analysis permit volume on top (mostly FL, adds IL after Chicago scrape)
   const stateComp: Record<string, number> = {}
   for (const r of compData) {
     const s = (r.state as string) || ''
@@ -139,7 +147,6 @@ async function getVolumeMetrics(): Promise<VolumeMetrics> {
     stateComp[s] = (stateComp[s] ?? 0) + 1
   }
 
-  // Combine: use leads as the primary source, add extra comp_analysis permits on top
   const allStates = new Set([...Object.keys(stateLeads), ...Object.keys(stateComp)])
   const byState = Array.from(allStates)
     .filter(s => s && s !== 'Unknown')
@@ -150,7 +157,7 @@ async function getVolumeMetrics(): Promise<VolumeMetrics> {
     }))
     .sort((a, b) => b.permits - a.permits)
 
-  return { totalPermits90d, totalValuation90d, noGcOpportunities, noGcRate, byState }
+  return { totalPermits, totalValuation90d, activeLeads, noGcRate, byState }
 }
 
 async function getMapData(): Promise<StateMapData[]> {
@@ -467,25 +474,25 @@ export default async function InsightsPage() {
             <div className="bg-navy-900/60 border border-navy-800 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Building2 className="w-4 h-4 text-slate-500" />
-                <span className="text-[10px] uppercase tracking-widest font-bold text-slate-600">Permisos Totales</span>
+                <span className="text-[10px] uppercase tracking-widest font-bold text-slate-600">Permisos Totales (90d)</span>
               </div>
               <p className="text-4xl font-black text-white tabular-nums tracking-tighter">
-                {volume.totalPermits90d.toLocaleString()}
+                {volume.totalPermits.toLocaleString()}
               </p>
-              <p className="text-xs text-slate-600 mt-1">emitidos en los últimos 90 días</p>
+              <p className="text-xs text-slate-600 mt-1">volumen total del mercado detectado</p>
             </div>
 
             <div className="bg-navy-900/60 border rounded-2xl p-5" style={{ borderColor: 'rgba(0,212,232,0.18)' }}>
               <div className="flex items-center gap-2 mb-3">
                 <Shield className="w-4 h-4" style={{ color: '#00D4E8' }} />
                 <span className="text-[10px] uppercase tracking-widest font-bold" style={{ color: '#00A3AD' }}>
-                  Oportunidades No-GC
+                  Leads Activos (Diamante)
                 </span>
               </div>
               <p className="text-4xl font-black text-white tabular-nums tracking-tighter">
-                {volume.noGcOpportunities.toLocaleString()}
+                {volume.activeLeads.toLocaleString()}
               </p>
-              <p className="text-xs mt-1" style={{ color: '#00D4E8' }}>dueños sin contratista asignado</p>
+              <p className="text-xs mt-1" style={{ color: '#00D4E8' }}>dueños directos sin contratista asignado</p>
             </div>
 
             <div className="bg-navy-900/60 border border-navy-800 rounded-2xl p-5">
@@ -524,7 +531,7 @@ export default async function InsightsPage() {
                     <p className="text-lg font-black tabular-nums mt-1" style={{ color: '#00D4E8' }}>
                       {s.permits.toLocaleString()}
                     </p>
-                    <p className="text-[9px] text-slate-600">leads</p>
+                    <p className="text-[9px] text-slate-600">permisos</p>
                     {s.opportunities > 0 && (
                       <p className="text-[10px] font-bold mt-1 px-1.5 py-0.5 rounded-full inline-block"
                          style={{ background: 'rgba(0,212,232,0.12)', color: '#00D4E8' }}>

@@ -38,14 +38,15 @@ export async function GET(req: NextRequest) {
   cleaned += compDeleted ?? 0
   log.push(`competitor_analysis: ${compDeleted ?? 0} permits > 90d deleted`)
 
-  // Delete from leads
+  // Delete from leads — preserva leads marcados como "Captured by Competitor" para trazabilidad
   const { count: leadsDeleted } = await supabase
     .from('leads')
     .delete({ count: 'exact' })
     .lt('permit_date', cutoff90)
     .not('permit_date', 'is', null)
+    .not('tags', 'cs', '["Captured by Competitor"]')
   cleaned += leadsDeleted ?? 0
-  log.push(`leads: ${leadsDeleted ?? 0} permits > 90d deleted`)
+  log.push(`leads: ${leadsDeleted ?? 0} permits > 90d deleted (Captured records preserved)`)
 
   // ── 2. OVERFLOW GUARD: Keep total under 20,000 ────────────────────────────
   const { count: totalCount } = await supabase
