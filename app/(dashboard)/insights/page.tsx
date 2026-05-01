@@ -1,5 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { Building2, TrendingUp, MapPin, AlertTriangle, BarChart3, Users, Shield, Zap, Clock, Activity } from 'lucide-react'
+import { Building2, TrendingUp, MapPin, AlertTriangle, BarChart3, Users, Shield, Zap, Clock, Activity, Star, Flame } from 'lucide-react'
+import USHeatMap from '@/components/insights/USHeatMap'
+import type { StateMapData } from '@/components/insights/USHeatMap'
 
 export const metadata = {
   title: 'Market Insights | MultiVenza LeadHunter',
@@ -7,8 +9,8 @@ export const metadata = {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const OVERLOAD_THRESHOLD = 5   // permits in same ZIP = "sobrecargado"
-const STALE_DAYS         = 30  // days since permit issued without finalization
+const OVERLOAD_THRESHOLD = 5
+const STALE_DAYS         = 30
 const FINALED_STATUSES   = ['finaled', 'closed', 'completed', 'co issued', 'final', 'expired']
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -58,6 +60,14 @@ interface RescueLead {
   tier:          string
 }
 
+interface ZipHeatEntry {
+  zip_code: string
+  city:     string
+  state:    string
+  count:    number
+  pct:      number
+}
+
 // ── Data fetching ─────────────────────────────────────────────────────────────
 
 async function getVolumeMetrics(): Promise<VolumeMetrics> {
@@ -65,19 +75,9 @@ async function getVolumeMetrics(): Promise<VolumeMetrics> {
   const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
   const [compRes, leadsRes, noGcRes] = await Promise.all([
-    supabase
-      .from('competitor_analysis')
-      .select('state, valuation')
-      .gte('permit_date', cutoff),
-    supabase
-      .from('leads')
-      .select('state', { count: 'exact' })
-      .limit(1),
-    supabase
-      .from('leads')
-      .select('state', { count: 'exact' })
-      .eq('no_gc', true)
-      .limit(1),
+    supabase.from('competitor_analysis').select('state, valuation').gte('permit_date', cutoff),
+    supabase.from('leads').select('state', { count: 'exact' }).limit(1),
+    supabase.from('leads').select('state', { count: 'exact' }).eq('no_gc', true).limit(1),
   ])
 
   const compData          = compRes.data  ?? []
@@ -100,12 +100,67 @@ async function getVolumeMetrics(): Promise<VolumeMetrics> {
   }
 
   const byState = Object.entries(stateMap).map(([state, { permits }]) => ({
-    state,
-    permits,
-    opportunities: oppByState[state] ?? 0,
+    state, permits, opportunities: oppByState[state] ?? 0,
   })).sort((a, b) => b.permits - a.permits)
 
   return { totalPermits90d, totalValuation90d, noGcOpportunities, noGcRate, byState }
+}
+
+async function getMapData(): Promise<StateMapData[]> {
+  const supabase = createAdminClient()
+  const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const cutoff30 = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+  const [compRes, diamanteRes, staleRes] = await Promise.all([
+    supabase.from('competitor_analysis').select('state, contractor_name').gte('permit_date', cutoff).limit(20000),
+    supabase.from('leads').select('state').or('tier.eq.diamante,no_gc.eq.true'),
+    supabase.from('leads').select('state, permit_status').lte('permit_date', cutoff30).not('permit_date', 'is', null).limit(500),
+  ])
+
+  const stateMap: Record<string, StateMapData> = {}
+  const contractorByState: Record<string, Record<string, number>> = {}
+
+  function ensure(s: string) {
+    if (!stateMap[s]) stateMap[s] = { state: s, permits90d: 0, diamante: 0, overloaded: 0, stale: 0, topGC: null }
+  }
+
+  for (const r of compRes.data ?? []) {
+    const s = (r.state as string) || ''
+    if (!s) continue
+    ensure(s)
+    stateMap[s].permits90d++
+
+    const gc = ((r.contractor_name as string) || '').trim()
+    if (gc) {
+      if (!contractorByState[s]) contractorByState[s] = {}
+      contractorByState[s][gc] = (contractorByState[s][gc] ?? 0) + 1
+    }
+  }
+
+  for (const [s, contractors] of Object.entries(contractorByState)) {
+    const sorted = Object.entries(contractors).sort((a, b) => b[1] - a[1])
+    if (stateMap[s]) {
+      stateMap[s].topGC      = sorted[0]?.[0] ?? null
+      stateMap[s].overloaded = sorted.filter(([, count]) => count >= 15).length
+    }
+  }
+
+  for (const r of diamanteRes.data ?? []) {
+    const s = (r.state as string) || ''
+    if (!s) continue
+    ensure(s)
+    stateMap[s].diamante++
+  }
+
+  for (const r of staleRes.data ?? []) {
+    const s      = (r.state as string) || ''
+    const status = ((r.permit_status as string) || '').toLowerCase()
+    if (!s || FINALED_STATUSES.some(f => status.includes(f))) continue
+    ensure(s)
+    stateMap[s].stale++
+  }
+
+  return Object.values(stateMap)
 }
 
 async function getSaturationData(): Promise<OverloadedContractor[]> {
@@ -127,9 +182,9 @@ async function getSaturationData(): Promise<OverloadedContractor[]> {
     const key = `${r.contractor_name}||${r.zip_code}`
     if (!map[key]) map[key] = {
       contractor_name: (r.contractor_name as string).trim().toUpperCase(),
-      zip_code:  r.zip_code  as string,
-      city:      (r.city  as string) || '',
-      state:     (r.state as string) || '',
+      zip_code:  r.zip_code as string,
+      city:      (r.city    as string) || '',
+      state:     (r.state   as string) || '',
       permit_count: 0,
     }
     map[key].permit_count++
@@ -142,15 +197,14 @@ async function getSaturationData(): Promise<OverloadedContractor[]> {
 }
 
 async function getRescueLeads(): Promise<RescueLead[]> {
-  const supabase   = createAdminClient()
-  const cutoff30   = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const supabase = createAdminClient()
+  const cutoff30 = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
   const { data } = await supabase
     .from('leads')
     .select('id, city, state, project_type, permit_number, permit_date, permit_status, no_gc, tier')
     .lte('permit_date', cutoff30)
     .not('permit_date', 'is', null)
-    .order('permit_date', { ascending: true })
     .limit(200)
 
   if (!data?.length) return []
@@ -172,8 +226,43 @@ async function getRescueLeads(): Promise<RescueLead[]> {
       no_gc:         (r.no_gc as boolean) ?? false,
       tier:          (r.tier as string) || 'plata',
     }))
-    .sort((a, b) => b.days_stale - a.days_stale)
+    .sort((a, b) => {
+      if (a.no_gc && !b.no_gc) return -1
+      if (!a.no_gc && b.no_gc) return 1
+      return b.days_stale - a.days_stale
+    })
     .slice(0, 20)
+}
+
+async function getZipHeatData(): Promise<ZipHeatEntry[]> {
+  const supabase = createAdminClient()
+  const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+  const { data } = await supabase
+    .from('competitor_analysis')
+    .select('zip_code, city, state')
+    .gte('permit_date', cutoff)
+    .not('zip_code', 'is', null)
+    .limit(15000)
+
+  if (!data?.length) return []
+
+  const map: Record<string, { city: string; state: string; count: number }> = {}
+  for (const r of data) {
+    const zip = r.zip_code as string
+    if (!map[zip]) map[zip] = { city: (r.city as string) || '', state: (r.state as string) || '', count: 0 }
+    map[zip].count++
+  }
+
+  const sorted = Object.entries(map)
+    .map(([zip_code, { city, state, count }]) => ({ zip_code, city, state, count, pct: 0 }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 36)
+
+  const max = sorted[0]?.count ?? 1
+  for (const e of sorted) e.pct = Math.round((e.count / max) * 100)
+
+  return sorted
 }
 
 async function getTerritoryData(): Promise<ZoneData[]> {
@@ -191,12 +280,10 @@ async function getTerritoryData(): Promise<ZoneData[]> {
   if (!data?.length) return []
 
   const cityMap: Record<string, { state: string; companies: Record<string, { permits: number; valuation: number }> }> = {}
-
   for (const r of data) {
     const city = (r.city as string).trim()
     const name = (r.contractor_name as string).trim().toUpperCase()
     const val  = Number(r.valuation) || 0
-
     if (!cityMap[city]) cityMap[city] = { state: r.state ?? '', companies: {} }
     if (!cityMap[city].companies[name]) cityMap[city].companies[name] = { permits: 0, valuation: 0 }
     cityMap[city].companies[name].permits++
@@ -205,7 +292,7 @@ async function getTerritoryData(): Promise<ZoneData[]> {
 
   return Object.entries(cityMap)
     .map(([zone, { state, companies }]) => {
-      const total = Object.values(companies).reduce((s, c) => s + c.permits, 0)
+      const total  = Object.values(companies).reduce((s, c) => s + c.permits, 0)
       const sorted = Object.entries(companies)
         .map(([name, { permits, valuation }]) => ({
           contractor_name: name,
@@ -213,11 +300,10 @@ async function getTerritoryData(): Promise<ZoneData[]> {
           valuation,
           share_pct:      Math.round((permits / total) * 100),
           monopoly:       (permits / total) >= 0.20,
-          permits_per_mo: Math.round((permits / 3) * 10) / 10,  // 90d window = 3 months
+          permits_per_mo: Math.round((permits / 3) * 10) / 10,
         }))
         .sort((a, b) => b.permits - a.permits)
         .slice(0, 10)
-
       return { zone, state, total, companies: sorted }
     })
     .filter(z => z.total >= 5)
@@ -250,17 +336,41 @@ function staleUrgency(days: number): { color: string; label: string } {
   return { color: '#FBB724', label: 'Medio' }
 }
 
+function heatFill(pct: number): string {
+  if (pct >= 80) return 'rgba(239,68,68,0.18)'
+  if (pct >= 55) return 'rgba(249,115,22,0.15)'
+  if (pct >= 30) return 'rgba(251,191,36,0.12)'
+  return 'rgba(0,212,232,0.07)'
+}
+
+function heatBorder(pct: number): string {
+  if (pct >= 80) return 'rgba(239,68,68,0.35)'
+  if (pct >= 55) return 'rgba(249,115,22,0.28)'
+  if (pct >= 30) return 'rgba(251,191,36,0.22)'
+  return 'rgba(0,212,232,0.14)'
+}
+
+function heatText(pct: number): string {
+  if (pct >= 80) return '#EF4444'
+  if (pct >= 55) return '#F97316'
+  if (pct >= 30) return '#FBB724'
+  return '#00D4E8'
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function InsightsPage() {
-  const [volume, saturation, rescueLeads, territories] = await Promise.all([
+  const [volume, mapData, saturation, rescueLeads, territories, zipHeat] = await Promise.all([
     getVolumeMetrics(),
+    getMapData(),
     getSaturationData(),
     getRescueLeads(),
     getTerritoryData(),
+    getZipHeatData(),
   ])
 
-  const monopolyZones = territories.filter(z => z.companies[0]?.monopoly)
+  const monopolyZones  = territories.filter(z => z.companies[0]?.monopoly)
+  const ownerPriority  = rescueLeads.filter(l => l.no_gc)
 
   return (
     <div className="min-h-screen bg-navy-950/50">
@@ -274,8 +384,8 @@ export default async function InsightsPage() {
               Market Insights
             </h1>
             <p className="text-slate-400 mt-2 max-w-xl text-sm leading-relaxed">
-              Inteligencia competitiva — dominio territorial, análisis de saturación,
-              leads de rescate y oportunidades No-GC vs mercado total.
+              Inteligencia competitiva — mapa de calor nacional, saturación territorial,
+              leads de rescate y análisis de dominio por zona.
             </p>
           </div>
           <div className="px-4 py-2 rounded-xl bg-navy-800/50 border border-navy-700 text-[10px] uppercase tracking-[0.2em] font-bold text-slate-500">
@@ -354,6 +464,51 @@ export default async function InsightsPage() {
           )}
         </section>
 
+        {/* ── Mapa de Calor Nacional ─────────────────────────────────────────── */}
+        <section>
+          <div className="flex items-center gap-2 mb-5">
+            <Flame className="w-4 h-4 text-gold-400" />
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.3em] text-gold-400">
+              Mapa de Calor Nacional — Barrido por Estado
+            </h2>
+          </div>
+          <USHeatMap data={mapData} />
+        </section>
+
+        {/* ── ZIP Heat Tiles ─────────────────────────────────────────────────── */}
+        {zipHeat.length > 0 && (
+          <section>
+            <div className="flex items-center gap-2 mb-4">
+              <MapPin className="w-4 h-4 text-slate-500" />
+              <h2 className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-600">
+                Densidad por ZIP Code — Top {zipHeat.length} Zonas Activas
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-3 sm:grid-cols-5 xl:grid-cols-9 gap-2">
+              {zipHeat.map(z => (
+                <div key={z.zip_code}
+                     className="rounded-xl p-3 text-center border transition-all hover:scale-105"
+                     style={{ background: heatFill(z.pct), borderColor: heatBorder(z.pct) }}>
+                  <p className="text-[11px] font-black text-white">{z.zip_code}</p>
+                  <p className="text-[9px] text-white/50 truncate">{z.city}</p>
+                  <p className="text-base font-black tabular-nums mt-1" style={{ color: heatText(z.pct) }}>
+                    {z.count}
+                  </p>
+                  <p className="text-[8px] text-white/30">perm</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 flex items-center gap-5 text-[10px] text-slate-600">
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: 'rgba(0,212,232,0.07)', border: '1px solid rgba(0,212,232,0.14)' }} /> Baja</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: 'rgba(251,191,36,0.12)' }} /> Media</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: 'rgba(249,115,22,0.15)' }} /> Alta</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: 'rgba(239,68,68,0.18)' }} /> Máxima</span>
+            </div>
+          </section>
+        )}
+
         {/* ── Inteligencia de Saturación ──────────────────────────────────────── */}
         <section>
           <div className="flex items-center gap-2 mb-5">
@@ -389,18 +544,15 @@ export default async function InsightsPage() {
                 <div className="p-8 text-center">
                   <p className="text-slate-500 text-sm">Sin datos de ZIP en competitor_analysis.</p>
                   <p className="text-slate-600 text-xs mt-1">
-                    Corre <code className="text-red-400">run_historical_90d.js</code> para poblar esta sección.
+                    Corre <code className="text-red-400">run_historical_90d.js</code> para poblar.
                   </p>
                 </div>
               ) : (
                 <div className="divide-y" style={{ borderColor: 'rgba(239,68,68,0.06)' }}>
                   {saturation.slice(0, 10).map((c, i) => {
-                    const urgency = c.permit_count >= 15 ? '#EF4444'
-                                  : c.permit_count >= 10 ? '#F97316'
-                                  : '#FBB724'
+                    const urgColor = c.permit_count >= 15 ? '#EF4444' : c.permit_count >= 10 ? '#F97316' : '#FBB724'
                     return (
-                      <div key={`${c.contractor_name}-${c.zip_code}`}
-                           className="flex items-center gap-3 px-5 py-3">
+                      <div key={`${c.contractor_name}-${c.zip_code}`} className="flex items-center gap-3 px-5 py-3">
                         <span className="text-[10px] text-slate-700 font-mono w-4 text-right shrink-0">{i + 1}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-[12px] font-bold text-slate-200 truncate">{c.contractor_name}</p>
@@ -409,8 +561,8 @@ export default async function InsightsPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <div className="w-2 h-2 rounded-full" style={{ background: urgency }} />
-                          <span className="text-sm font-black tabular-nums" style={{ color: urgency }}>
+                          <div className="w-2 h-2 rounded-full" style={{ background: urgColor }} />
+                          <span className="text-sm font-black tabular-nums" style={{ color: urgColor }}>
                             {c.permit_count}
                           </span>
                           <span className="text-[10px] text-slate-600">perm</span>
@@ -420,11 +572,9 @@ export default async function InsightsPage() {
                   })}
                 </div>
               )}
-
               <div className="px-5 py-3 border-t" style={{ borderColor: 'rgba(239,68,68,0.08)' }}>
                 <p className="text-[10px] text-slate-700">
-                  Un GC sobrecargado tiene mayor probabilidad de rechazar trabajos o subcontratar.
-                  Contacta directo al dueño como alternativa.
+                  GC saturado = mayor probabilidad de rechazar trabajos. Contacta al dueño directamente.
                 </p>
               </div>
             </div>
@@ -439,36 +589,61 @@ export default async function InsightsPage() {
                   <div>
                     <h3 className="text-sm font-bold text-white">Leads de Rescate</h3>
                     <p className="text-[10px] text-slate-600 mt-0.5">
-                      Permisos &gt;{STALE_DAYS} días emitidos sin estado finalizado
+                      Permisos &gt;{STALE_DAYS}d sin cierre · Owner Priority primero
                     </p>
                   </div>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ background: 'rgba(251,191,36,0.12)', color: '#FBB724' }}>
-                  {rescueLeads.length} leads
-                </span>
+                <div className="flex items-center gap-2">
+                  {ownerPriority.length > 0 && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
+                          style={{ background: 'rgba(0,212,232,0.12)', color: '#00D4E8' }}>
+                      <Star className="w-2.5 h-2.5" />
+                      {ownerPriority.length} Owner
+                    </span>
+                  )}
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ background: 'rgba(251,191,36,0.12)', color: '#FBB724' }}>
+                    {rescueLeads.length} leads
+                  </span>
+                </div>
               </div>
 
               {rescueLeads.length === 0 ? (
                 <div className="p-8 text-center">
                   <p className="text-slate-500 text-sm">No hay permisos estancados actualmente.</p>
-                  <p className="text-slate-600 text-xs mt-1">Excelente — todos los permisos están en proceso activo.</p>
+                  <p className="text-slate-600 text-xs mt-1">Todos los permisos están en proceso activo.</p>
                 </div>
               ) : (
                 <div className="divide-y" style={{ borderColor: 'rgba(251,191,36,0.06)' }}>
                   {rescueLeads.slice(0, 10).map(lead => {
                     const { color, label } = staleUrgency(lead.days_stale)
                     return (
-                      <div key={lead.id} className="flex items-center gap-3 px-5 py-3">
+                      <div key={lead.id}
+                           className="flex items-center gap-3 px-5 py-3 transition-all"
+                           style={lead.no_gc ? {
+                             background:   'rgba(0,212,232,0.04)',
+                             borderLeft:   '2px solid rgba(0,212,232,0.4)',
+                             paddingLeft:  '18px',
+                           } : {}}>
+                        {/* Owner star */}
+                        {lead.no_gc ? (
+                          <div className="shrink-0 flex flex-col items-center gap-0.5">
+                            <Star className="w-3.5 h-3.5 fill-current" style={{ color: '#00D4E8' }} />
+                            <span className="text-[8px] font-black uppercase" style={{ color: '#00D4E8' }}>Owner</span>
+                          </div>
+                        ) : (
+                          <div className="w-6 shrink-0" />
+                        )}
+
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-[12px] font-bold truncate" style={{ color: tierColor(lead.tier) }}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-[12px] font-bold" style={{ color: tierColor(lead.tier) }}>
                               {lead.city}, {lead.state}
                             </p>
                             {lead.no_gc && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-                                    style={{ background: 'rgba(0,212,232,0.12)', color: '#00D4E8' }}>
-                                No-GC
+                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded"
+                                    style={{ background: 'rgba(0,212,232,0.15)', color: '#00D4E8' }}>
+                                No-GC · Dueño Directo
                               </span>
                             )}
                           </div>
@@ -479,6 +654,7 @@ export default async function InsightsPage() {
                             Estado: {lead.permit_status || 'Issued'} · desde {lead.permit_date}
                           </p>
                         </div>
+
                         <div className="shrink-0 text-right">
                           <p className="text-xs font-black tabular-nums" style={{ color }}>{lead.days_stale}d</p>
                           <p className="text-[9px] font-bold mt-0.5" style={{ color }}>{label}</p>
@@ -491,7 +667,7 @@ export default async function InsightsPage() {
 
               <div className="px-5 py-3 border-t" style={{ borderColor: 'rgba(251,191,36,0.08)' }}>
                 <p className="text-[10px] text-slate-700">
-                  Proyecto iniciado pero sin cierre — el contratista puede estar fallando. Oportunidad de rescate.
+                  ⭐ Owner Priority = No-GC + estancado. Acceso directo al dueño sin competencia.
                 </p>
               </div>
             </div>
@@ -512,8 +688,7 @@ export default async function InsightsPage() {
               {monopolyZones.slice(0, 6).map(zone => {
                 const top5 = zone.companies.filter(c => c.monopoly).slice(0, 5)
                 return (
-                  <div key={zone.zone}
-                       className="rounded-2xl border overflow-hidden"
+                  <div key={zone.zone} className="rounded-2xl border overflow-hidden"
                        style={{ background: 'rgba(251,191,36,0.03)', borderColor: 'rgba(251,191,36,0.15)' }}>
                     <div className="px-4 py-3 flex items-center justify-between border-b"
                          style={{ borderColor: 'rgba(251,191,36,0.10)' }}>
@@ -527,7 +702,6 @@ export default async function InsightsPage() {
                         {zone.total} permisos
                       </span>
                     </div>
-
                     <div className="p-3 space-y-2">
                       {top5.map((c, i) => (
                         <div key={c.contractor_name} className="flex items-center gap-3">
@@ -561,7 +735,7 @@ export default async function InsightsPage() {
           <div className="flex items-center gap-2 mb-4">
             <Users className="w-4 h-4 text-slate-500" />
             <h2 className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-600">
-              Dominio por Zona — Top 10 GCs por Ciudad · Eficiencia del Contratista
+              Dominio por Zona — Top 10 GCs · Cuota de Mercado · Vel/mes
             </h2>
           </div>
 
@@ -570,7 +744,7 @@ export default async function InsightsPage() {
               <Building2 className="w-8 h-8 text-slate-600 mx-auto mb-3" />
               <p className="text-slate-400 text-sm">Sin datos de contratistas en los últimos 90 días.</p>
               <p className="text-slate-600 text-xs mt-1">
-                Corre el script <code className="text-gold-500">run_historical_90d.js</code> para poblar esta sección.
+                Corre <code className="text-gold-500">run_historical_90d.js</code> para poblar esta sección.
               </p>
             </div>
           ) : (
@@ -596,7 +770,6 @@ export default async function InsightsPage() {
                     )}
                   </div>
 
-                  {/* Column headers */}
                   <div className="px-4 py-2 border-b border-navy-800/50 flex items-center gap-3">
                     <span className="w-4 shrink-0" />
                     <span className="flex-1 text-[9px] uppercase tracking-widest text-slate-700 font-bold">Contratista</span>
@@ -620,17 +793,11 @@ export default async function InsightsPage() {
                               <div className="h-full rounded-full"
                                    style={{
                                      width: `${c.share_pct}%`,
-                                     background: c.monopoly
-                                       ? (c.share_pct >= 35 ? '#EF4444' : '#FBB724')
-                                       : 'rgba(0,212,232,0.5)',
+                                     background: c.monopoly ? (c.share_pct >= 35 ? '#EF4444' : '#FBB724') : 'rgba(0,212,232,0.5)',
                                    }} />
                             </div>
                             <span className="text-[10px] font-bold tabular-nums w-8 text-right"
-                                  style={{
-                                    color: c.monopoly
-                                      ? (c.share_pct >= 35 ? '#EF4444' : '#FBB724')
-                                      : '#00D4E8',
-                                  }}>
+                                  style={{ color: c.monopoly ? (c.share_pct >= 35 ? '#EF4444' : '#FBB724') : '#00D4E8' }}>
                               {c.share_pct}%
                             </span>
                           </div>

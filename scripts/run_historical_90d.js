@@ -9,10 +9,12 @@
  * Condados soportados (con endpoints públicos confirmados):
  *   Hillsborough (FL)  — ArcGIS REST confirmado
  *   Miami-Dade   (FL)  — ArcGIS Hub open data (descubrimiento dinámico)
+ *   Cook         (IL)  — Chicago Data Portal SODA API (data.cityofchicago.org)
  *
- * Pendiente de endpoint verificado (agrega el URL cuando tengas acceso):
- *   Harris   (TX / Houston)  — City of Houston Open Data (necesita URL de FeatureServer)
- *   Maricopa (AZ / Phoenix)  — City of Phoenix Open Data (necesita URL de FeatureServer)
+ * Pendiente de endpoint verificado (sin FeatureServer público confirmado):
+ *   Harris   (TX / Houston) — geohub.houstontx.gov / data.houstontx.gov
+ *   Maricopa (AZ / Phoenix) — data-maricopa.opendata.arcgis.com
+ *   Fulton   (GA / Atlanta) — gisdata.fultoncountyga.gov (Accela ACA, sin REST público)
  *
  * Usage:
  *   node scripts/run_historical_90d.js
@@ -47,6 +49,21 @@ function buildPostData(params) {
   return Object.entries(params)
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join('&');
+}
+
+function httpsGet(urlStr) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(urlStr);
+    const lib    = parsed.protocol === 'https:' ? https : http;
+    lib.get(urlStr, { headers: { Accept: 'application/json' } }, res => {
+      let data = '';
+      res.on('data', c => { data += c; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch (e) { reject(new Error(`JSON parse error: ${data.slice(0, 100)}`)); }
+      });
+    }).on('error', reject);
+  });
 }
 
 function httpsPost(baseUrl, postData) {
@@ -195,6 +212,57 @@ async function extractMiamiDade(sinceDate, maxRecords) {
   return [];
 }
 
+// Cook County (IL) — Chicago Data Portal SODA API (confirmed public endpoint)
+async function extractChicago(sinceDate, maxRecords) {
+  const BASE     = 'https://data.cityofchicago.org/resource/ydr8-5enu.json';
+  const pageSize = Math.min(maxRecords, 1000);
+  const all      = [];
+  let offset     = 0;
+
+  console.log(`[Chicago/Cook] Querying building permits since ${sinceDate}...`);
+
+  while (all.length < maxRecords) {
+    const remaining = maxRecords - all.length;
+    const qs = new URLSearchParams({
+      '$where':  `application_start_date >= '${sinceDate}T00:00:00.000'`,
+      '$limit':  String(Math.min(pageSize, remaining)),
+      '$offset': String(offset),
+      '$order':  'application_start_date DESC',
+    });
+
+    const data = await httpsGet(`${BASE}?${qs}`);
+    if (!Array.isArray(data) || data.length === 0) break;
+
+    all.push(...data);
+    if (data.length < Math.min(pageSize, remaining)) break;
+    offset += data.length;
+  }
+
+  console.log(`[Chicago/Cook] ${all.length} raw records`);
+
+  return all.map(r => {
+    const addr = [r.street_number, r.street_direction, r.street_name, r.suffix]
+      .filter(Boolean).join(' ').trim();
+    const contractorRaw = (r.contact_1_company_name || r.contact_1_name || '').trim();
+
+    return {
+      permitNumber:   r.permit_ || r.id || `CH-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      permitDate:     r.application_start_date
+        ? new Date(r.application_start_date).toISOString().slice(0, 10)
+        : null,
+      permitType:     r.permit_type || r.work_description || '',
+      status:         r.current_status || 'Issued',
+      address:        addr,
+      city:           r.community_area_name || 'Chicago',
+      zip:            r.zip_code || '',
+      county:         'Cook',
+      state:          'IL',
+      contractorName: contractorRaw || null,
+      valuation:      Number(r.reported_cost) || 0,
+    };
+  });
+}
+
 // Stub entries for counties needing endpoint research
 function pendingCountyNote(county, state, resourceUrl) {
   console.warn(`\n[${county}] Endpoint not yet confirmed for ${state}.`);
@@ -302,7 +370,7 @@ async function main() {
   console.log('════════════════════════════════════════════════════════════\n');
 
   // ── Extract all counties ─────────────────────────────────────────────────
-  const [hillsborough, miamiDade] = await Promise.all([
+  const [hillsborough, miamiDade, chicago] = await Promise.all([
     extractHillsborough(since, MAX).catch(e => {
       console.error('[Hillsborough] Error:', e.message);
       return [];
@@ -311,19 +379,23 @@ async function main() {
       console.error('[Miami-Dade] Error:', e.message);
       return [];
     }),
+    extractChicago(since, MAX).catch(e => {
+      console.error('[Chicago/Cook] Error:', e.message);
+      return [];
+    }),
   ]);
 
-  // Pending counties (add FeatureServer URL when available)
-  await Promise.all([
-    pendingCountyNote('Harris',   'TX', 'https://cohgis-mycity.opendata.arcgis.com/'),
-    pendingCountyNote('Maricopa', 'AZ', 'https://maps.maricopa.gov/'),
-  ]);
+  // Pending counties (no confirmed public FeatureServer)
+  pendingCountyNote('Harris',   'TX', 'https://geohub.houstontx.gov/');
+  pendingCountyNote('Maricopa', 'AZ', 'https://data-maricopa.opendata.arcgis.com/');
+  pendingCountyNote('Fulton',   'GA', 'https://gisdata.fultoncountyga.gov/');
 
-  const allRecords = [...hillsborough, ...miamiDade];
+  const allRecords = [...hillsborough, ...miamiDade, ...chicago];
 
   console.log(`\n── Summary ──────────────────────────────────────────────`);
   console.log(`  Hillsborough (FL): ${hillsborough.length} permisos`);
   console.log(`  Miami-Dade   (FL): ${miamiDade.length} permisos`);
+  console.log(`  Chicago/Cook (IL): ${chicago.length} permisos`);
   console.log(`  Total:             ${allRecords.length} permisos`);
 
   // ── Save raw snapshot ────────────────────────────────────────────────────
@@ -339,9 +411,11 @@ async function main() {
   }
 
   // ── Sync to SaaS ─────────────────────────────────────────────────────────
-  // FL records
   const flRecords = allRecords.filter(r => r.state === 'FL');
+  const ilRecords = allRecords.filter(r => r.state === 'IL');
+
   if (flRecords.length > 0) await syncCompetitors(flRecords, 'FL');
+  if (ilRecords.length > 0) await syncCompetitors(ilRecords, 'IL');
 
   console.log('\n════════════════════════════════════════════════════════════');
   console.log('  ✅  Barrida histórica completa');
