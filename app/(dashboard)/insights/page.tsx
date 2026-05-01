@@ -112,9 +112,9 @@ async function getMapData(): Promise<StateMapData[]> {
   const cutoff30 = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
   const [compRes, diamanteRes, staleRes] = await Promise.all([
-    supabase.from('competitor_analysis').select('state, contractor_name').gte('permit_date', cutoff).limit(20000),
+    supabase.from('competitor_analysis').select('state, contractor_name').gte('permit_date', cutoff),
     supabase.from('leads').select('state').or('tier.eq.diamante,no_gc.eq.true'),
-    supabase.from('leads').select('state, permit_status').lte('permit_date', cutoff30).not('permit_date', 'is', null).limit(500),
+    supabase.from('leads').select('state, permit_status').lte('permit_date', cutoff30).not('permit_date', 'is', null),
   ])
 
   const stateMap: Record<string, StateMapData> = {}
@@ -173,7 +173,6 @@ async function getSaturationData(): Promise<OverloadedContractor[]> {
     .gte('permit_date', cutoff)
     .not('contractor_name', 'is', null)
     .not('zip_code', 'is', null)
-    .limit(10000)
 
   if (!data?.length) return []
 
@@ -205,7 +204,6 @@ async function getRescueLeads(): Promise<RescueLead[]> {
     .select('id, city, state, project_type, permit_number, permit_date, permit_status, no_gc, tier')
     .lte('permit_date', cutoff30)
     .not('permit_date', 'is', null)
-    .limit(200)
 
   if (!data?.length) return []
 
@@ -243,7 +241,6 @@ async function getZipHeatData(): Promise<ZipHeatEntry[]> {
     .select('zip_code, city, state')
     .gte('permit_date', cutoff)
     .not('zip_code', 'is', null)
-    .limit(15000)
 
   if (!data?.length) return []
 
@@ -275,7 +272,6 @@ async function getTerritoryData(): Promise<ZoneData[]> {
     .gte('permit_date', cutoff)
     .not('contractor_name', 'is', null)
     .not('city', 'is', null)
-    .limit(5000)
 
   if (!data?.length) return []
 
