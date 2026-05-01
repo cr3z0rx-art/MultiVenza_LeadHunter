@@ -72,17 +72,40 @@ interface ZipHeatEntry {
 
 // ── Data fetching ─────────────────────────────────────────────────────────────
 
+async function fetchAll(queryFn: (from: number, to: number) => any) {
+  let allData: any[] = []
+  const PAGE_SIZE = 1000
+  let page = 0
+  let hasMore = true
+
+  // Fetch in parallel chunks for speed (up to 15,000 records = 15 chunks)
+  const chunks = await Promise.all(
+    Array.from({ length: 15 }).map((_, i) => {
+      const from = i * PAGE_SIZE
+      const to   = from + PAGE_SIZE - 1
+      return queryFn(from, to)
+    })
+  )
+
+  for (const res of chunks) {
+    if (res.data && res.data.length > 0) {
+      allData = allData.concat(res.data)
+    }
+  }
+
+  return allData
+}
+
 async function getVolumeMetrics(): Promise<VolumeMetrics> {
   const supabase = createAdminClient()
   const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-  const [compRes, leadsRes, noGcRes] = await Promise.all([
-    supabase.from('competitor_analysis').select('state, valuation').gte('permit_date', cutoff),
-    supabase.from('leads').select('state', { count: 'exact' }).limit(1),
-    supabase.from('leads').select('state', { count: 'exact' }).eq('no_gc', true).limit(1),
+  const [compData, leadsRes, noGcRes] = await Promise.all([
+    fetchAll((from, to) => supabase.from('competitor_analysis').select('state, valuation').gte('permit_date', cutoff).range(from, to)),
+    supabase.from('leads').select('state', { count: 'exact', head: true }),
+    supabase.from('leads').select('state', { count: 'exact', head: true }).eq('no_gc', true),
   ])
 
-  const compData          = compRes.data  ?? []
   const totalPermits90d   = compData.length
   const totalValuation90d = compData.reduce((s, r) => s + (Number(r.valuation) || 0), 0)
   const noGcOpportunities = noGcRes.count  ?? 0
@@ -113,10 +136,10 @@ async function getMapData(): Promise<StateMapData[]> {
   const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const cutoff30 = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-  const [compRes, diamanteRes, staleRes] = await Promise.all([
-    supabase.from('competitor_analysis').select('state, contractor_name').gte('permit_date', cutoff),
-    supabase.from('leads').select('state').or('tier.eq.diamante,no_gc.eq.true'),
-    supabase.from('leads').select('state, permit_status').lte('permit_date', cutoff30).not('permit_date', 'is', null),
+  const [compData, diamanteData, staleData] = await Promise.all([
+    fetchAll((from, to) => supabase.from('competitor_analysis').select('state, contractor_name').gte('permit_date', cutoff).range(from, to)),
+    fetchAll((from, to) => supabase.from('leads').select('state').or('tier.eq.diamante,no_gc.eq.true').range(from, to)),
+    fetchAll((from, to) => supabase.from('leads').select('state, permit_status').lte('permit_date', cutoff30).not('permit_date', 'is', null).range(from, to)),
   ])
 
   const stateMap: Record<string, StateMapData> = {}
@@ -126,7 +149,7 @@ async function getMapData(): Promise<StateMapData[]> {
     if (!stateMap[s]) stateMap[s] = { state: s, permits90d: 0, diamante: 0, overloaded: 0, stale: 0, topGC: null }
   }
 
-  for (const r of compRes.data ?? []) {
+  for (const r of compData) {
     const s = (r.state as string) || ''
     if (!s) continue
     ensure(s)
@@ -147,14 +170,14 @@ async function getMapData(): Promise<StateMapData[]> {
     }
   }
 
-  for (const r of diamanteRes.data ?? []) {
+  for (const r of diamanteData) {
     const s = (r.state as string) || ''
     if (!s) continue
     ensure(s)
     stateMap[s].diamante++
   }
 
-  for (const r of staleRes.data ?? []) {
+  for (const r of staleData) {
     const s      = (r.state as string) || ''
     const status = ((r.permit_status as string) || '').toLowerCase()
     if (!s || FINALED_STATUSES.some(f => status.includes(f))) continue
@@ -169,14 +192,17 @@ async function getSaturationData(): Promise<OverloadedContractor[]> {
   const supabase = createAdminClient()
   const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-  const { data } = await supabase
-    .from('competitor_analysis')
-    .select('contractor_name, zip_code, city, state')
-    .gte('permit_date', cutoff)
-    .not('contractor_name', 'is', null)
-    .not('zip_code', 'is', null)
+  const data = await fetchAll((from, to) => 
+    supabase
+      .from('competitor_analysis')
+      .select('contractor_name, zip_code, city, state')
+      .gte('permit_date', cutoff)
+      .not('contractor_name', 'is', null)
+      .not('zip_code', 'is', null)
+      .range(from, to)
+  )
 
-  if (!data?.length) return []
+  if (!data.length) return []
 
   const map: Record<string, OverloadedContractor> = {}
   for (const r of data) {
@@ -238,13 +264,16 @@ async function getZipHeatData(): Promise<ZipHeatEntry[]> {
   const supabase = createAdminClient()
   const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-  const { data } = await supabase
-    .from('competitor_analysis')
-    .select('zip_code, city, state')
-    .gte('permit_date', cutoff)
-    .not('zip_code', 'is', null)
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from('competitor_analysis')
+      .select('zip_code, city, state')
+      .gte('permit_date', cutoff)
+      .not('zip_code', 'is', null)
+      .range(from, to)
+  )
 
-  if (!data?.length) return []
+  if (!data.length) return []
 
   const map: Record<string, { city: string; state: string; count: number }> = {}
   for (const r of data) {
@@ -268,14 +297,17 @@ async function getTerritoryData(): Promise<ZoneData[]> {
   const supabase = createAdminClient()
   const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-  const { data } = await supabase
-    .from('competitor_analysis')
-    .select('city, state, contractor_name, valuation')
-    .gte('permit_date', cutoff)
-    .not('contractor_name', 'is', null)
-    .not('city', 'is', null)
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from('competitor_analysis')
+      .select('city, state, contractor_name, valuation')
+      .gte('permit_date', cutoff)
+      .not('contractor_name', 'is', null)
+      .not('city', 'is', null)
+      .range(from, to)
+  )
 
-  if (!data?.length) return []
+  if (!data.length) return []
 
   const cityMap: Record<string, { state: string; companies: Record<string, { permits: number; valuation: number }> }> = {}
   for (const r of data) {
