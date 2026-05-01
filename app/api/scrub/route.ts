@@ -41,13 +41,14 @@ export async function GET(req: Request) {
     }, { status: 400 })
   }
 
-  // Fetch records that don't have investment_range yet OR haven't been processed
-  // Para simplificar el "Pulido", buscaremos los que tengan investment_range null o que no sean Small/Medium/High
+  const offset = parseInt(searchParams.get('offset') || '0')
+  
+  // Fetch records using offset to ensure we cover everything
   const { data: records, error } = await supabase
     .from(targetTable)
     .select('*')
-    .filter('investment_range', 'not.in', '(Small,Medium,High)')
-    .limit(1000)
+    .order('id', { ascending: true })
+    .range(offset, offset + 999)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

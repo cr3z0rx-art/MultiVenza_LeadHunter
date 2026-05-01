@@ -26,9 +26,10 @@ async function main() {
     let totalDeleted = 0;
     let batches = 0;
 
+    let offset = 0;
     while (true) {
-      console.log(`[${table}] Ejecutando lote #${batches + 1}...`);
-      const result = await scrubBatch(`${Date.now()}_${table}&table=${table}`);
+      console.log(`[${table}] Ejecutando lote #${batches + 1} (offset: ${offset})...`);
+      const result = await scrubBatch(`${Date.now()}_${table}&table=${table}&offset=${offset}`);
       
       if (result.error) {
         if (result.error === 'CRITICAL_MISSING_COLUMN') {
@@ -41,7 +42,7 @@ async function main() {
       
       console.log(`[${table}] Lote #${batches + 1}: Escaneados=${result.scanned}, Actualizados=${result.records_updated}, Borrados=${result.duplicates_deleted}`);
       
-      if (result.scanned === 0) {
+      if (result.scanned < 1000) {
         console.log(`✅ Tabla ${table} procesada.`);
         break;
       }
@@ -50,8 +51,9 @@ async function main() {
       totalUpdated += result.records_updated || 0;
       totalDeleted += result.duplicates_deleted || 0;
       batches++;
+      offset += 1000;
       
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 300));
     }
     
     console.log(`--- Resumen ${table} ---`);
