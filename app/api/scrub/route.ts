@@ -46,7 +46,7 @@ export async function GET(req: Request) {
   const { data: records, error } = await supabase
     .from(targetTable)
     .select('*')
-    .not('investment_range', 'in', ['Small', 'Medium', 'High'])
+    .filter('investment_range', 'not.in', '(Small,Medium,High)')
     .limit(1000)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
