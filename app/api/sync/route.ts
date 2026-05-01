@@ -39,8 +39,10 @@ export async function POST(req: NextRequest) {
   const supabase = serviceClient()
   const result: SyncResult = { inserted: 0, updated: 0, skipped: 0, errors: [] }
 
+  try {
+
   // ── Upsert in chunks (dedup on permit_number) ────────────────────────────────
-  for (let i = 0; i < leads.length; i += CHUNK_SIZE) {
+  for (let i = 0; i < (leads?.length ?? 0); i += CHUNK_SIZE) {
     const chunk = leads.slice(i, i + CHUNK_SIZE).map(l => ({
       // Explicit column list — prevents schema-cache errors if payload has extra fields
       city:                l.city                ?? '',
@@ -141,6 +143,11 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json(result)
+
+  } catch (e: any) {
+    console.error('[sync] Unhandled error:', e.message, e.stack)
+    return NextResponse.json({ error: e.message ?? 'Internal error' }, { status: 500 })
+  }
 }
 
 export async function DELETE(req: NextRequest) {
