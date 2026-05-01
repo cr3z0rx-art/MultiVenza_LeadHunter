@@ -7,6 +7,8 @@ export const metadata = {
   title: 'Market Insights | MultiVenza LeadHunter',
 }
 
+export const dynamic = 'force-dynamic'
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const OVERLOAD_THRESHOLD = 5
