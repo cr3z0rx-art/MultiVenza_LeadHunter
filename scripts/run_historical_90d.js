@@ -498,9 +498,59 @@ async function main() {
   if (azRecords.length > 0) await syncCompetitors(azRecords, 'AZ');
   if (gaRecords.length > 0) await syncCompetitors(gaRecords, 'GA');
 
+  // ── PROTOCOLO DE LIMPIEZA 90 DÍAS ────────────────────────────────────────
+  await runMaintenance();
+
   console.log('\n════════════════════════════════════════════════════════════');
   console.log('  ✅  Barrida histórica completa');
   console.log('════════════════════════════════════════════════════════════\n');
+}
+
+// ── Maintenance Protocol ──────────────────────────────────────────────────────
+// Calls the Vercel Cron endpoint to run cleanup + No-GC monitor remotely.
+// The endpoint handles: 90-day pruning, 20k overflow guard, Captured by Competitor tagging.
+
+async function runMaintenance() {
+  if (!SAAS_API_URL) return;
+
+  console.log('\n[maintenance] Activando Protocolo de Limpieza 90 Días...');
+
+  return new Promise((resolve) => {
+    const url    = `${SAAS_API_URL}/api/cron/daily-sweep`;
+    const parsed = new URL(url);
+    const lib    = parsed.protocol === 'https:' ? https : http;
+
+    const options = {
+      hostname: parsed.hostname,
+      port:     parsed.port || 443,
+      path:     parsed.pathname,
+      method:   'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': '2',
+        'x-api-key': SAAS_API_KEY,
+      },
+    };
+
+    const req = lib.request(options, res => {
+      let data = '';
+      res.on('data', c => { data += c; });
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          console.log(`[maintenance] Permisos eliminados (>90d): ${json.permits_cleaned ?? 0}`);
+          console.log(`[maintenance] Leads capturados por competidores: ${json.leads_captured_by_competitor ?? 0}`);
+          if (json.log) json.log.forEach(l => console.log(`  · ${l}`));
+        } catch {
+          console.warn('[maintenance] Respuesta no-JSON:', data.slice(0, 100));
+        }
+        resolve();
+      });
+    });
+    req.on('error', e => { console.warn('[maintenance] Error:', e.message); resolve(); });
+    req.write('{}');
+    req.end();
+  });
 }
 
 main().catch(err => {
