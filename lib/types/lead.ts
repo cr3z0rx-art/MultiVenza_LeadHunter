@@ -1,5 +1,5 @@
 export type LeadTier         = 'diamante' | 'oro' | 'plata'
-export type LeadState        = 'FL' | 'GA' | 'IL' | 'TX' | 'AZ' | 'NC' | 'MIXED'
+export type LeadState        = 'FL' | 'GA' | 'IL' | 'TX' | 'AZ' | 'NC'
 export type ProjectType      = 'Roofing' | 'Flooring' | 'HVAC' | 'New Construction' | 'CGC' | 'Remodel' | 'Home Builder'
 export type RoofClass        = 'critical' | 'warm' | 'normal'
 

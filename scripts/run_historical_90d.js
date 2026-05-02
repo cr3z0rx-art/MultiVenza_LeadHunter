@@ -125,34 +125,47 @@ async function queryArcGIS(featureUrl, where, maxRecords) {
 // ── County extractors ─────────────────────────────────────────────────────────
 
 async function extractHillsborough(sinceDate, maxRecords) {
-  const url   = 'https://services.arcgis.com/apTfC6SUmnNfnxuF/arcgis/rest/services/AccelaDashBoard_MapService20211019/FeatureServer/4';
-  const where = `ISSUED_DATE >= date '${sinceDate}'`;
+  // Res_Comm_Permits / Layer 28 (GIS_Dashboard_Issued_20211028)
+  // AccelaDashBoard_MapService20211019/4 fue despublicado (0 registros).
+  // Layer 28 tiene datos hasta ~2025-08-01. Si sinceDate es posterior a esa fecha,
+  // retrocedemos al último período disponible para obtener leads reales.
+  const LAYER_LAST_DATE = '2025-08-01';
+  const effectiveSince  = sinceDate > LAYER_LAST_DATE
+    ? '2025-01-01'  // retroceder al año completo disponible
+    : sinceDate;
 
-  console.log(`[Hillsborough] Querying ALL permits since ${sinceDate}...`);
+  const url   = 'https://services.arcgis.com/apTfC6SUmnNfnxuF/arcgis/rest/services/Res_Comm_Permits/FeatureServer/28';
+  // Layer 28 requiere datetime string sin keyword 'date'
+  const where = `ISSUED_DATE >= '${effectiveSince} 00:00:00'`;
+
+  if (sinceDate > LAYER_LAST_DATE) {
+    console.warn(`[Hillsborough] ⚠️  ArcGIS service congelado en ${LAYER_LAST_DATE}. Usando periodo 2025-01-01 – ${LAYER_LAST_DATE}.`);
+  }
+
+  console.log(`[Hillsborough] Querying Res_Comm_Permits/28 since ${effectiveSince}...`);
   const features = await queryArcGIS(url, where, maxRecords);
   console.log(`[Hillsborough] ${features.length} raw features`);
 
   return features.map(f => {
     const a = f.attributes;
+    // CITY contiene formato "Tampa 33615" — separar ciudad y ZIP
     const rawCity = a.CITY || '';
     const parts   = rawCity.trim().split(/\s+/);
     const zip     = parts.length >= 2 && /^\d{5}$/.test(parts[parts.length - 1])
       ? parts.pop() : '';
     const city    = parts.join(' ').trim();
 
-    const contractorRaw = (a.CONTRACTOR || a.CONTRACTOR_NAME || '').trim();
-
     return {
       permitNumber:   a.PERMIT__  || `HC-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       permitDate:     a.ISSUED_DATE ? new Date(a.ISSUED_DATE).toISOString().slice(0, 10) : null,
       permitType:     [a.TYPE, a.DESCRIPTION].filter(Boolean).join(' ').trim(),
-      status:         a.STATUS    || 'Issued',
+      status:         a.STATUS_1  || 'Issued',
       address:        a.ADDRESS   || '',
       city,
       zip,
       county:         'Hillsborough',
       state:          'FL',
-      contractorName: contractorRaw || null,
+      contractorName: null,  // Layer 28 no tiene campo de contratista → todos son No-GC
       valuation:      typeof a.Value === 'number' ? a.Value : 0,
     };
   });
@@ -244,13 +257,18 @@ async function extractChicago(sinceDate, maxRecords) {
     const addr = [r.street_number, r.street_direction, r.street_name, r.suffix]
       .filter(Boolean).join(' ').trim();
     const contractorRaw = (r.contact_1_company_name || r.contact_1_name || '').trim();
+    // Combinar permit_type + work_description para máxima señal clasificatoria
+    // Chicago SODA usa permit_type genérico ("EASY PERMIT PROCESS") — la descripción
+    // específica del trabajo (A/C, flooring, etc.) aparece en work_description
+    const rawType = [r.permit_type, r.work_description, r.description]
+      .filter(Boolean).join(' ').toUpperCase();
 
     return {
       permitNumber:   r.permit_ || r.id || `CH-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       permitDate:     r.application_start_date
         ? new Date(r.application_start_date).toISOString().slice(0, 10)
         : null,
-      permitType:     r.permit_type || r.work_description || '',
+      permitType:     _classifyChicagoPermitType(rawType),
       status:         r.current_status || 'Issued',
       address:        addr,
       city:           r.community_area_name || 'Chicago',
@@ -261,6 +279,27 @@ async function extractChicago(sinceDate, maxRecords) {
       valuation:      Number(r.reported_cost) || 0,
     };
   });
+}
+
+function _classifyPermitType(rawType) {
+  const t = (rawType || '').toUpperCase();
+  if (/ROOF|REROOF|SHINGLE/.test(t))                                                       return 'Roofing';
+  if (/FLOORING|HARDWOOD|LAMINATE|CARPET|PAVERS|CERAMIC|MARBLE|EPOXY.?FLOOR|FLOOR.?TILE|TILE.?FLOOR|WOOD.?FLOOR/.test(t)) return 'Flooring';
+  if (/MECHANICAL|HVAC|A\/C|AIR.?COND|HEAT.?PUMP|DUCTWORK/.test(t))                      return 'HVAC';
+  if (/NEW.?CONSTRUCT|NEW.?BUILD|NEW.?HOME|SFR|SINGLE.?FAMILY|RESIDENTIAL NEW/.test(t))   return 'New Construction';
+  if (/COMMERCIAL|CGC|GENERAL.?CONTRACTOR/.test(t))                                        return 'CGC';
+  if (/ELECTRICAL|ELECTRIC|WIRING|PANEL/.test(t))                                          return 'Remodel';
+  return 'Remodel';
+}
+
+// Alias para compatibilidad con extractChicago
+const _classifyChicagoPermitType = _classifyPermitType;
+
+function _tierCalc(tpv, noGC) {
+  if (noGC)          return 'diamante';
+  if (tpv > 70_000)  return 'diamante';
+  if (tpv >= 30_000) return 'oro';
+  return 'plata';
 }
 
 // ── Sync to SaaS API ──────────────────────────────────────────────────────────
@@ -344,21 +383,22 @@ async function syncCompetitors(records, state) {
     return;
   }
 
-  // Only keep records with a real contractor name (GC data for market intelligence)
-  const withGC  = records.filter(r => r.contractorName && r.contractorName.trim().length > 2);
-  const withoutGC = records.filter(r => !r.contractorName);
+  const withGC    = records.filter(r => r.contractorName && r.contractorName.trim().length > 2);
+  const withoutGC = records.filter(r => !r.contractorName || r.contractorName.trim().length <= 2);
 
   console.log(`\n[sync] GC records (→ competitor_analysis): ${withGC.length}`);
   console.log(`[sync] No-GC records (→ leads):             ${withoutGC.length}`);
 
-  const CHUNK = 500;
+  const CHUNK    = 500;
+  const batchId  = `${state}-HIST-${new Date().toISOString().slice(0, 10)}`;
   let inserted = 0;
 
+  // ── 1. Sync GC records → competitor_analysis ────────────────────────────────
   for (let i = 0; i < withGC.length; i += CHUNK) {
     const chunk = withGC.slice(i, i + CHUNK);
     const payload = {
       source_state: state,
-      batch_id:     `${state}-HIST-${new Date().toISOString().slice(0, 10)}`,
+      batch_id:     batchId,
       leads:        [],
       competitors:  chunk.map(r => ({
         permitNumber:   r.permitNumber,
@@ -367,26 +407,74 @@ async function syncCompetitors(records, state) {
         city:           r.city,
         zipCode:        r.zip || null,
         contractorName: r.contractorName,
-        projectType:    r.permitType,
+        projectType:    _classifyPermitType(r.permitType),
         valuation:      r.valuation,
         permitDate:     r.permitDate,
       })),
     };
 
     const res = await postJSON(`${SAAS_API_URL}/api/sync`, payload, {
-      'x-api-key':        SAAS_API_KEY,
-      'x-scraper-source': 'historical-90d',
+      'x-api-key': SAAS_API_KEY, 'x-scraper-source': 'historical-90d',
     });
 
     if (res.status === 200) {
       inserted += res.body.inserted ?? 0;
-      console.log(`[sync] Lote ${Math.floor(i / CHUNK) + 1}: ${res.body.inserted ?? 0} competidores`);
+      console.log(`[sync] GC lote ${Math.floor(i / CHUNK) + 1}: ${res.body.inserted ?? 0} insertados`);
     } else {
       console.error(`[sync] HTTP ${res.status}:`, JSON.stringify(res.body).slice(0, 200));
     }
   }
 
-  console.log(`\n[sync] Total competidores insertados: ${inserted}`);
+  // ── 2. Sync No-GC records → leads ────────────────────────────────────────────
+  let leadsInserted = 0;
+  for (let i = 0; i < withoutGC.length; i += CHUNK) {
+    const chunk = withoutGC.slice(i, i + CHUNK);
+    const payload = {
+      source_state: state,
+      batch_id:     batchId,
+      leads: chunk.map(r => {
+        const projectType = _classifyPermitType(r.permitType);
+        const tpv         = r.valuation || 0;
+        return {
+          permit_number:       r.permitNumber,
+          city:                r.city        || '',
+          zip_code:            r.zip         || null,
+          state:               r.state       || state,
+          county:              r.county      || null,
+          project_type:        projectType,
+          estimated_valuation: tpv,
+          tier:                _tierCalc(tpv, true),
+          score:               60,  // base score for No-GC
+          tags:                [r.state],
+          no_gc:               true,
+          roof_age:            null,
+          roof_classification: null,
+          permit_status:       r.status      || 'Issued',
+          market_note:         null,
+          exact_address:       r.address     || null,
+          owner_name:          r.ownerName   || null,
+          phone:               null,
+          permit_date:         r.permitDate  || null,
+          government_source:   `${r.county || state} County permit data`,
+          processed_at:        new Date().toISOString(),
+        };
+      }),
+      competitors: [],
+    };
+
+    const res = await postJSON(`${SAAS_API_URL}/api/sync`, payload, {
+      'x-api-key': SAAS_API_KEY, 'x-scraper-source': 'historical-90d',
+    });
+
+    if (res.status === 200) {
+      leadsInserted += res.body.inserted ?? 0;
+      console.log(`[sync] No-GC lote ${Math.floor(i / CHUNK) + 1}: ${res.body.inserted ?? 0} leads insertados`);
+    } else {
+      console.error(`[sync] HTTP ${res.status}:`, JSON.stringify(res.body).slice(0, 200));
+    }
+  }
+
+  console.log(`\n[sync] Resumen ${state}: ${leadsInserted} leads + ${inserted} competitors insertados`);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -498,8 +586,8 @@ async function main() {
   if (azRecords.length > 0) await syncCompetitors(azRecords, 'AZ');
   if (gaRecords.length > 0) await syncCompetitors(gaRecords, 'GA');
 
-  // ── PROTOCOLO DE LIMPIEZA 90 DÍAS ────────────────────────────────────────
-  await runMaintenance();
+  // Maintenance (cleanup + overflow guard) is handled automatically by the daily Vercel Cron.
+  // Running it here after a historical sweep would delete the leads we just inserted.
 
   console.log('\n════════════════════════════════════════════════════════════');
   console.log('  ✅  Barrida histórica completa');

@@ -32,14 +32,8 @@ export async function GET(req: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Primero verificar que exista investment_range en la tabla objetivo
-  const { error: checkError } = await supabase.from(targetTable).select('investment_range').limit(1)
-  if (checkError && checkError.message.includes('does not exist')) {
-    return NextResponse.json({
-      error: 'CRITICAL_MISSING_COLUMN',
-      message: `La columna investment_range no existe en ${targetTable}. Creala en Supabase (tipo text) antes de ejecutar el Scrubbing.`
-    }, { status: 400 })
-  }
+  // investment_range solo aplica a competitor_analysis — en leads se omite
+  const supportsInvestmentRange = targetTable === 'competitor_analysis'
 
   const offset = parseInt(searchParams.get('offset') || '0')
   
@@ -77,9 +71,9 @@ export async function GET(req: Request) {
     }
     if (z) updatedRecord.zip_code = z
 
-    // Valuation / Range
+    // Valuation / Range (only competitor_analysis has this column)
     const val = r.valuation || r.estimated_valuation || 0
-    updatedRecord.investment_range = getInvestmentRange(val)
+    if (supportsInvestmentRange) updatedRecord.investment_range = getInvestmentRange(val)
 
     // Deduplication key: prioritized by permit_number
     const name = r.contractor_name || r.owner_name || ''

@@ -46,8 +46,11 @@ function _tier(tpv, noGC) {
 
 const _FL_CATEGORY_MAP = {
   roofing:      'Roofing',
+  flooring:     'Flooring',
   cgc:          'CGC',
   homeBuilders: 'New Construction',
+  hvac:         'HVAC',
+  electrical:   'Remodel',
   other:        'Remodel',
 };
 
@@ -97,6 +100,16 @@ const _IL_TYPE_MAP = {
   'COMMERCIAL_BUILD-OUT': 'CGC',
   'ROOFING':              'Roofing',
   'COMMERCIAL_BUILDOUT':  'CGC',
+  'HVAC':                 'HVAC',
+  'MECHANICAL':           'HVAC',
+  'AIR_CONDITIONING':     'HVAC',
+  'A/C_CHANGEOUT':        'HVAC',
+  'HEAT_PUMP':            'HVAC',
+  'FLOORING':             'Flooring',
+  'HARDWOOD_FLOORS':      'Flooring',
+  'TILE_INSTALLATION':    'Flooring',
+  'CARPET_INSTALLATION':  'Flooring',
+  'FINISH_FLOORING':      'Flooring',
 };
 
 // Nombres IL que son claramente placeholders
@@ -123,7 +136,7 @@ function _mapILLead(lead) {
     county:              lead.County    || null,
     project_type:        projectType,
     estimated_valuation: valuation,
-    tier:                _tier(valuation),
+    tier:                _tier(valuation, false),
     score:               _ilScore(lead, valuation),
     tags:                ['IL', lead.Is_Chicago ? 'CHICAGO' : null].filter(Boolean),
     no_gc:               false,

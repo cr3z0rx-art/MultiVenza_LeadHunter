@@ -180,9 +180,9 @@ export default function USHeatMap({ data }: Props) {
       <div className="flex items-center gap-5 text-[10px] text-slate-600 flex-wrap">
         {mode === 'diamante' && (
           <>
-            <Legend color="rgba(22,163,74,0.45)"  label="1–3 leads" />
-            <Legend color="rgba(22,163,74,0.75)"  label="4–15 leads" />
-            <Legend color="rgba(22,163,74,1)"     label="16+ leads" />
+            <Legend color="rgba(22,163,74,0.45)"  label="1–3 permisos" />
+            <Legend color="rgba(22,163,74,0.75)"  label="4–15 permisos" />
+            <Legend color="rgba(22,163,74,1)"     label="16+ permisos" />
             <Legend color="rgba(13,20,32,0.9)"    label="Sin datos" />
           </>
         )}

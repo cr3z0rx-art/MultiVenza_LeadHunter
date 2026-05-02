@@ -15,7 +15,7 @@ function formatCompact(n: number): string {
 }
 
 // The 4 target niches for this run
-const TARGET_NICHES = new Set<string>(['Roofing', 'HVAC', 'CGC', 'New Construction'])
+const TARGET_NICHES = new Set<string>(['Roofing', 'HVAC', 'CGC', 'New Construction', 'Flooring'])
 
 function isHighPriority(lead: Lead): boolean {
   // Highest signal: niche + No-GC (both conditions met)

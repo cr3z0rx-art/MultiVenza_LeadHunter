@@ -45,7 +45,7 @@ interface ZoneData {
 
 interface VolumeMetrics {
   totalPermits:       number   // volumen total del mercado detectado (90d)
-  activeLeads:        number   // leads Diamante No-GC disponibles
+  activeLeads:        number   // permisos No-GC (todos los tiers) = oportunidades de acceso directo
   totalValuation90d:  number
   noGcRate:           number
   byState: { state: string; permits: number; opportunities: number }[]
@@ -80,296 +80,109 @@ interface ZipHeatEntry {
   pct:      number
 }
 
-// ── Data fetching ─────────────────────────────────────────────────────────────
+// ── Data fetching — RPC-based (server aggregation, no chunked fetches) ────────
 
-async function fetchAll(queryFn: (from: number, to: number) => any) {
-  let allData: any[] = []
-  const PAGE_SIZE = 1000
-  let page = 0
-  let hasMore = true
-
-  // Fetch in parallel chunks for speed (up to 25,000 records = 25 chunks)
-  const chunks = await Promise.all(
-    Array.from({ length: 25 }).map((_, i) => {
-      const from = i * PAGE_SIZE
-      const to   = from + PAGE_SIZE - 1
-      return queryFn(from, to)
-    })
-  )
-
-  for (const res of chunks) {
-    if (res.data && res.data.length > 0) {
-      allData = allData.concat(res.data)
-    }
-  }
-
-  return allData
+function cutoff90() {
+  return new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
 
 async function getVolumeMetrics(): Promise<VolumeMetrics> {
   const supabase = createAdminClient()
-  const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-
-  const [compData, leadsData] = await Promise.all([
-    // Explicit 90d window on competitor_analysis (FL + IL from historical scraper)
-    fetchAll((from, to) =>
-      supabase.from('competitor_analysis').select('state, valuation')
-        .gte('permit_date', cutoff).range(from, to)
-    ),
-    // All leads regardless of date (leads table is the authoritative No-GC source)
-    fetchAll((from, to) =>
-      supabase.from('leads').select('state, no_gc').range(from, to)
-    ),
-  ])
-
-  // totalPermits = full market volume detected (GC permits in comp_analysis + all leads)
-  const totalPermits      = compData.length + leadsData.length
-  const totalValuation90d = compData.reduce((s, r) => s + (Number(r.valuation) || 0), 0)
-
-  // activeLeads = Diamante opportunities (No-GC = direct owner access)
-  const activeLeads = leadsData.filter(r => r.no_gc).length
-  const noGcRate    = leadsData.length > 0 ? Math.round((activeLeads / leadsData.length) * 100) : 0
-
-  // Per-state breakdown: leads table is authoritative for FL/TX/AZ/GA/IL/NC
-  const stateLeads: Record<string, { permits: number; opportunities: number }> = {}
-  for (const r of leadsData) {
-    const s = (r.state as string) || 'Unknown'
-    if (!stateLeads[s]) stateLeads[s] = { permits: 0, opportunities: 0 }
-    stateLeads[s].permits++
-    if (r.no_gc) stateLeads[s].opportunities++
+  const { data, error } = await supabase.rpc('get_market_insights', { p_cutoff: cutoff90() })
+  if (error) throw error
+  const d = data as any
+  return {
+    totalPermits:      Number(d.totalPermits      ?? 0),
+    totalValuation90d: Number(d.totalValuation90d ?? 0),
+    activeLeads:       Number(d.activeLeads       ?? 0),
+    noGcRate:          Number(d.noGcRate          ?? 0),
+    byState:           Array.isArray(d.byState) ? d.byState : [],
   }
-
-  // Add competitor_analysis permit volume on top (mostly FL, adds IL after Chicago scrape)
-  const stateComp: Record<string, number> = {}
-  for (const r of compData) {
-    const s = (r.state as string) || ''
-    if (!s || s === 'Unknown') continue
-    stateComp[s] = (stateComp[s] ?? 0) + 1
-  }
-
-  const allStates = new Set([...Object.keys(stateLeads), ...Object.keys(stateComp)])
-  const byState = Array.from(allStates)
-    .filter(s => s && s !== 'Unknown')
-    .map(state => ({
-      state,
-      permits:       (stateLeads[state]?.permits ?? 0) + (stateComp[state] ?? 0),
-      opportunities: stateLeads[state]?.opportunities ?? 0,
-    }))
-    .sort((a, b) => b.permits - a.permits)
-
-  return { totalPermits, totalValuation90d, activeLeads, noGcRate, byState }
 }
 
 async function getMapData(): Promise<StateMapData[]> {
   const supabase = createAdminClient()
-  const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-  const cutoff30 = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-
-  const [compData, diamanteData, staleData] = await Promise.all([
-    fetchAll((from, to) => supabase.from('competitor_analysis').select('state, contractor_name').range(from, to)),
-    fetchAll((from, to) => supabase.from('leads').select('state').or('tier.eq.diamante,no_gc.eq.true').range(from, to)),
-    fetchAll((from, to) => supabase.from('leads').select('state, permit_status').not('permit_date', 'is', null).range(from, to)),
-  ])
-
-  const stateMap: Record<string, StateMapData> = {}
-  const contractorByState: Record<string, Record<string, number>> = {}
-
-  function ensure(s: string) {
-    if (!stateMap[s]) stateMap[s] = { state: s, permits90d: 0, diamante: 0, overloaded: 0, stale: 0, topGC: null }
-  }
-
-  for (const r of compData) {
-    const s = (r.state as string) || ''
-    if (!s) continue
-    ensure(s)
-    stateMap[s].permits90d++
-
-    const gc = ((r.contractor_name as string) || '').trim()
-    if (gc) {
-      if (!contractorByState[s]) contractorByState[s] = {}
-      contractorByState[s][gc] = (contractorByState[s][gc] ?? 0) + 1
-    }
-  }
-
-  for (const [s, contractors] of Object.entries(contractorByState)) {
-    const sorted = Object.entries(contractors).sort((a, b) => b[1] - a[1])
-    if (stateMap[s]) {
-      stateMap[s].topGC      = sorted[0]?.[0] ?? null
-      stateMap[s].overloaded = sorted.filter(([, count]) => count >= 15).length
-    }
-  }
-
-  for (const r of diamanteData) {
-    const s = (r.state as string) || ''
-    if (!s) continue
-    ensure(s)
-    stateMap[s].diamante++
-  }
-
-  for (const r of staleData) {
-    const s      = (r.state as string) || ''
-    const status = ((r.permit_status as string) || '').toLowerCase()
-    if (!s || FINALED_STATUSES.some(f => status.includes(f))) continue
-    ensure(s)
-    stateMap[s].stale++
-  }
-
-  return Object.values(stateMap)
+  const { data, error } = await supabase.rpc('get_map_state_data', { p_cutoff: cutoff90() })
+  if (error) throw error
+  return ((data ?? []) as any[]).map(r => ({
+    state:      r.state      as string,
+    permits90d: Number(r.permits90d),
+    diamante:   Number(r.diamante),
+    overloaded: Number(r.overloaded),
+    stale:      Number(r.stale),
+    topGC:      (r.top_gc as string | null) ?? null,
+  }))
 }
 
 async function getSaturationData(): Promise<OverloadedContractor[]> {
   const supabase = createAdminClient()
-  const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-
-  const data = await fetchAll((from, to) => 
-    supabase
-      .from('competitor_analysis')
-      .select('contractor_name, zip_code, city, state')
-      .not('contractor_name', 'is', null)
-      .not('zip_code', 'is', null)
-      .range(from, to)
-  )
-
-  if (!data.length) return []
-
-  const map: Record<string, OverloadedContractor> = {}
-  for (const r of data) {
-    const key = `${r.contractor_name}||${r.zip_code}`
-    if (!map[key]) map[key] = {
-      contractor_name: (r.contractor_name as string).trim().toUpperCase(),
-      zip_code:  r.zip_code as string,
-      city:      (r.city    as string) || '',
-      state:     (r.state   as string) || '',
-      permit_count: 0,
-    }
-    map[key].permit_count++
-  }
-
-  return Object.values(map)
-    .filter(c => c.permit_count >= OVERLOAD_THRESHOLD)
-    .sort((a, b) => b.permit_count - a.permit_count)
-    .slice(0, 20)
+  const { data, error } = await supabase.rpc('get_saturation_zones', {
+    p_threshold: OVERLOAD_THRESHOLD,
+    p_cutoff:    cutoff90(),
+  })
+  if (error) throw error
+  return ((data ?? []) as any[]).map(r => ({
+    contractor_name: r.contractor_name as string,
+    zip_code:        r.zip_code        as string,
+    city:            r.city            as string,
+    state:           r.state           as string,
+    permit_count:    Number(r.permit_count),
+  }))
 }
 
 async function getRescueLeads(): Promise<RescueLead[]> {
   const supabase = createAdminClient()
-  const cutoffTime = Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000
-
-  const { data } = await supabase
-    .from('leads')
-    .select('id, city, state, project_type, permit_number, permit_date, permit_status, no_gc, tier')
-    .not('permit_date', 'is', null)
-    .order('id', { ascending: false })
-    .limit(5000)
-
-  if (!data?.length) return []
-
-  return data
-    .filter(r => {
-      const status = ((r.permit_status as string) || '').toLowerCase().trim()
-      if (FINALED_STATUSES.some(s => status.includes(s))) return false
-      
-      const pd = new Date(r.permit_date as string).getTime()
-      if (isNaN(pd)) return false
-      return pd <= cutoffTime
-    })
-    .map(r => ({
-      id:            r.id as string,
-      city:          (r.city as string) || '',
-      state:         (r.state as string) || '',
-      project_type:  (r.project_type as string) || '',
-      permit_number: (r.permit_number as string) || '',
-      permit_date:   (r.permit_date as string) || '',
-      permit_status: (r.permit_status as string | null),
-      days_stale:    Math.floor((Date.now() - new Date(r.permit_date as string).getTime()) / 86_400_000),
-      no_gc:         (r.no_gc as boolean) ?? false,
-      tier:          (r.tier as string) || 'plata',
-    }))
-    .sort((a, b) => {
-      if (a.no_gc && !b.no_gc) return -1
-      if (!a.no_gc && b.no_gc) return 1
-      return b.days_stale - a.days_stale
-    })
-    .slice(0, 20)
+  const { data, error } = await supabase.rpc('get_rescue_leads', {
+    p_stale_days: STALE_DAYS,
+    p_limit:      20,
+  })
+  if (error) throw error
+  return ((data ?? []) as any[]).map(r => ({
+    id:            String(r.id),
+    city:          r.city          as string,
+    state:         r.state         as string,
+    project_type:  r.project_type  as string,
+    permit_number: r.permit_number as string,
+    permit_date:   r.permit_date   as string,
+    permit_status: (r.permit_status as string | null) ?? null,
+    no_gc:         Boolean(r.no_gc),
+    tier:          r.tier          as string,
+    days_stale:    Number(r.days_stale),
+  }))
 }
 
 async function getZipHeatData(): Promise<ZipHeatEntry[]> {
   const supabase = createAdminClient()
-  const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-
-  const data = await fetchAll((from, to) =>
-    supabase
-      .from('competitor_analysis')
-      .select('zip_code, city, state')
-      .not('zip_code', 'is', null)
-      .range(from, to)
-  )
-
-  if (!data.length) return []
-
-  const map: Record<string, { city: string; state: string; count: number }> = {}
-  for (const r of data) {
-    const zip = r.zip_code as string
-    if (!map[zip]) map[zip] = { city: (r.city as string) || '', state: (r.state as string) || '', count: 0 }
-    map[zip].count++
-  }
-
-  const sorted = Object.entries(map)
-    .map(([zip_code, { city, state, count }]) => ({ zip_code, city, state, count, pct: 0 }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 36)
-
-  const max = sorted[0]?.count ?? 1
-  for (const e of sorted) e.pct = Math.round((e.count / max) * 100)
-
-  return sorted
+  const { data, error } = await supabase.rpc('get_zip_heat', {
+    p_cutoff: cutoff90(),
+    p_limit:  36,
+  })
+  if (error) throw error
+  return ((data ?? []) as any[]).map(r => ({
+    zip_code: r.zip_code as string,
+    city:     r.city     as string,
+    state:    r.state    as string,
+    count:    Number(r.count),
+    pct:      Number(r.pct),
+  }))
 }
 
 async function getTerritoryData(): Promise<ZoneData[]> {
   const supabase = createAdminClient()
-  const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-
-  const data = await fetchAll((from, to) =>
-    supabase
-      .from('competitor_analysis')
-      .select('city, state, contractor_name, valuation')
-      .not('contractor_name', 'is', null)
-      .not('city', 'is', null)
-      .range(from, to)
-  )
-
-  if (!data.length) return []
-
-  const cityMap: Record<string, { state: string; companies: Record<string, { permits: number; valuation: number }> }> = {}
-  for (const r of data) {
-    const city = (r.city as string).trim()
-    const name = (r.contractor_name as string).trim().toUpperCase()
-    const val  = Number(r.valuation) || 0
-    if (!cityMap[city]) cityMap[city] = { state: r.state ?? '', companies: {} }
-    if (!cityMap[city].companies[name]) cityMap[city].companies[name] = { permits: 0, valuation: 0 }
-    cityMap[city].companies[name].permits++
-    cityMap[city].companies[name].valuation += val
-  }
-
-  return Object.entries(cityMap)
-    .map(([zone, { state, companies }]) => {
-      const total  = Object.values(companies).reduce((s, c) => s + c.permits, 0)
-      const sorted = Object.entries(companies)
-        .map(([name, { permits, valuation }]) => ({
-          contractor_name: name,
-          permits,
-          valuation,
-          share_pct:      Math.round((permits / total) * 100),
-          monopoly:       (permits / total) >= 0.20,
-          permits_per_mo: Math.round((permits / 3) * 10) / 10,
-        }))
-        .sort((a, b) => b.permits - a.permits)
-        .slice(0, 10)
-      return { zone, state, total, companies: sorted }
-    })
-    .filter(z => z.total >= 5)
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 20)
+  const { data, error } = await supabase.rpc('get_territory_control', {
+    p_min_permits: 5,
+    p_city_limit:  20,
+    p_cutoff:      cutoff90(),
+  })
+  if (error) throw error
+  return ((data ?? []) as any[]).map(r => ({
+    zone:      r.zone  as string,
+    state:     r.state as string,
+    total:     Number(r.total),
+    companies: (typeof r.companies === 'string'
+      ? JSON.parse(r.companies)
+      : r.companies) ?? [],
+  }))
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -421,13 +234,15 @@ function heatText(pct: number): string {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function InsightsPage() {
+  const defaultVolume: VolumeMetrics = { totalPermits: 0, activeLeads: 0, totalValuation90d: 0, noGcRate: 0, byState: [] }
+
   const [volume, saturation, rescueLeads, territories, zipHeat] = await Promise.all([
-    getVolumeMetrics(),
+    getVolumeMetrics().catch(() => defaultVolume),
     // getMapData(),
-    getSaturationData(),
-    getRescueLeads(),
-    getTerritoryData(),
-    getZipHeatData(),
+    getSaturationData().catch(() => [] as OverloadedContractor[]),
+    getRescueLeads().catch(() => [] as RescueLead[]),
+    getTerritoryData().catch(() => [] as ZoneData[]),
+    getZipHeatData().catch(() => [] as ZipHeatEntry[]),
   ])
 
   const monopolyZones  = territories.filter(z => z.companies[0]?.monopoly)

@@ -104,7 +104,7 @@ export default function ContractorSearch() {
         {loading && (
           <div className="flex items-center gap-2 mt-4 px-1">
             <Loader2 className="w-3.5 h-3.5 text-cyan-500 animate-spin" />
-            <span className="text-[11px] text-slate-500">Buscando en 17,292 leads...</span>
+            <span className="text-[11px] text-slate-500">Buscando en la base de permisos nacionales...</span>
           </div>
         )}
 

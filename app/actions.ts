@@ -26,22 +26,13 @@ export async function fetchDailyStats(): Promise<DailyStats> {
 
 export async function fetchHotLeads(): Promise<Lead[]> {
   const supabase = createAdminClient()
-  const cutoff   = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
-  let { data, error } = await supabase
+  const { data } = await supabase
     .from('leads')
     .select('*')
+    .order('projected_profit', { ascending: false })
     .order('estimated_valuation', { ascending: false })
     .limit(5)
-
-  if (error || !data?.length) {
-    const fallback = await supabase
-      .from('leads')
-      .select('*')
-      .order('estimated_valuation', { ascending: false })
-      .limit(5)
-    data = fallback.data
-  }
 
   return (data ?? []).map(toFrontendLead)
 }
@@ -53,7 +44,6 @@ export async function fetchLeads(
 ): Promise<{ leads: Lead[]; count: number }> {
   const supabase = createAdminClient()
 
-  // HARD RESET: Sin filtros de fecha ni valuación para debug total
   let q = supabase
     .from('leads')
     .select('*', { count: 'exact' })
@@ -70,8 +60,6 @@ export async function fetchLeads(
   if (filters.no_gc_only)    q = q.eq('no_gc', true)
 
   const { data, count, error } = await q
-
-  console.log(`[HARD RESET] Supabase response: count=${count}, dataLength=${data?.length}, error=${error?.message || 'none'}`)
 
   if (error) {
     console.error('[fetchLeads ERROR]', error.message)
