@@ -418,8 +418,8 @@ async function syncCompetitors(records, state) {
     });
 
     if (res.status === 200) {
-      inserted += res.body.inserted ?? 0;
-      console.log(`[sync] GC lote ${Math.floor(i / CHUNK) + 1}: ${res.body.inserted ?? 0} insertados`);
+      console.log(`[sync] GC lote ${Math.floor(i / CHUNK) + 1}: ${chunk.length} competitors enviados (dedup silencioso en API)`);
+      inserted += chunk.length;
     } else {
       console.error(`[sync] HTTP ${res.status}:`, JSON.stringify(res.body).slice(0, 200));
     }
@@ -543,22 +543,12 @@ async function main() {
     }),
   ]);
 
-  // Pending counties (simulated for National Expansion)
-  const [harris, maricopa, fulton] = await Promise.all([
-    extractSimulated('TX', 'Harris', 'Houston', ['77002', '77004', '77006', '77008', '77019'], since, MAX),
-    extractSimulated('AZ', 'Maricopa', 'Phoenix', ['85001', '85003', '85004', '85008', '85012'], since, MAX),
-    extractSimulated('GA', 'Fulton', 'Atlanta', ['30303', '30305', '30308', '30309', '30312'], since, MAX)
-  ]);
-
-  const allRecords = [...hillsborough, ...miamiDade, ...chicago, ...harris, ...maricopa, ...fulton];
+  const allRecords = [...hillsborough, ...miamiDade, ...chicago];
 
   console.log(`\n── Summary ──────────────────────────────────────────────`);
   console.log(`  Hillsborough (FL): ${hillsborough.length} permisos`);
   console.log(`  Miami-Dade   (FL): ${miamiDade.length} permisos`);
   console.log(`  Chicago/Cook (IL): ${chicago.length} permisos`);
-  console.log(`  Harris       (TX): ${harris.length} permisos`);
-  console.log(`  Maricopa     (AZ): ${maricopa.length} permisos`);
-  console.log(`  Fulton       (GA): ${fulton.length} permisos`);
   console.log(`  Total:             ${allRecords.length} permisos`);
 
   // ── Save raw snapshot ────────────────────────────────────────────────────
@@ -576,15 +566,9 @@ async function main() {
   // ── Sync to SaaS ─────────────────────────────────────────────────────────
   const flRecords = allRecords.filter(r => r.state === 'FL');
   const ilRecords = allRecords.filter(r => r.state === 'IL');
-  const txRecords = allRecords.filter(r => r.state === 'TX');
-  const azRecords = allRecords.filter(r => r.state === 'AZ');
-  const gaRecords = allRecords.filter(r => r.state === 'GA');
 
   if (flRecords.length > 0) await syncCompetitors(flRecords, 'FL');
   if (ilRecords.length > 0) await syncCompetitors(ilRecords, 'IL');
-  if (txRecords.length > 0) await syncCompetitors(txRecords, 'TX');
-  if (azRecords.length > 0) await syncCompetitors(azRecords, 'AZ');
-  if (gaRecords.length > 0) await syncCompetitors(gaRecords, 'GA');
 
   // Maintenance (cleanup + overflow guard) is handled automatically by the daily Vercel Cron.
   // Running it here after a historical sweep would delete the leads we just inserted.

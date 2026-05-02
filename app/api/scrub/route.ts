@@ -53,7 +53,10 @@ export async function GET(req: Request) {
   for (const r of (records || [])) {
     // Normalización de campos comunes
     const updatedRecord: any = { id: r.id }
-    
+
+    // Always carry state to avoid PostgreSQL NOT NULL violations in ON CONFLICT DO UPDATE
+    if (r.state) updatedRecord.state = r.state
+
     if (r.contractor_name) updatedRecord.contractor_name = cleanString(r.contractor_name)
     if (r.owner_name) updatedRecord.owner_name = cleanString(r.owner_name)
     if (r.city) updatedRecord.city = cleanString(r.city)
