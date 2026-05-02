@@ -51,18 +51,16 @@ export async function GET(req: Request) {
   const seenKeys = new Set<string>()
 
   for (const r of (records || [])) {
-    // Normalización de campos comunes
-    const updatedRecord: any = { id: r.id }
+    // Start with full original record so all NOT NULL columns are preserved in ON CONFLICT DO UPDATE
+    const updatedRecord: any = { ...r }
 
-    // Always carry state to avoid PostgreSQL NOT NULL violations in ON CONFLICT DO UPDATE
-    if (r.state) updatedRecord.state = r.state
-
+    // Apply normalizations on top
     if (r.contractor_name) updatedRecord.contractor_name = cleanString(r.contractor_name)
     if (r.owner_name) updatedRecord.owner_name = cleanString(r.owner_name)
     if (r.city) updatedRecord.city = cleanString(r.city)
     if (r.exact_address) updatedRecord.exact_address = cleanString(r.exact_address)
     if (r.address) updatedRecord.address = cleanString(r.address)
-    
+
     // Zip code extraction (if missing)
     let z = r.zip_code ? String(r.zip_code).trim() : ''
     if (!z || z.toLowerCase() === 'null') {
