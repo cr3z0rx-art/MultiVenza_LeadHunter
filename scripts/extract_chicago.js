@@ -57,12 +57,14 @@ function buildQueryString(daysBack, maxRecords) {
   const typeFilters = TARGET_PERMIT_TYPES.map(t => `upper(permit_type) like '%25${t}%25'`);
   where += ` AND (${typeFilters.join(' OR ')})`;
 
+  // Add reported_cost > 0 to filter out fee-only records
+  where += ` AND reported_cost > 0`;
+
   const params = new URLSearchParams({
     $where: where,
     $order: 'issue_date DESC',
     $limit: Math.min(maxRecords, 1000),
-    // Fields we need — works without specifying, but explicit for clarity
-    $select: 'id,permit_,permit_type,issue_date,status,address,zip_code,ward,community_area,total_fee,reported_cost,applicant_name,license_number',
+    $select: 'id,permit_,permit_type,issue_date,street_number,street_direction,street_name,reported_cost,total_fee,contact_1_name,contact_1_type,ward,community_area',
   });
 
   return params.toString();
@@ -98,19 +100,22 @@ function mapToRawPermit(record) {
   if (record.reported_cost) {
     valuation = parseFloat(record.reported_cost) || 0;
   } else if (record.total_fee) {
-    valuation = parseFloat(record.total_fee) * 2 || 0; // rough proxy
+    valuation = parseFloat(record.total_fee) * 2 || 0;
   }
 
-  // Derive city from ward/community_area or default to Chicago
-  const cityName = 'Chicago'; // most permits are Chicago; could refine with community_area
+  // Build address from street components
+  const stNum = record.street_number || '';
+  const stDir = record.street_direction || '';
+  const stName = record.street_name || '';
+  const address = [stNum, stDir, stName].filter(Boolean).join(' ');
 
+  const cityName = 'Chicago';
   const permitType = (record.permit_type || '').toUpperCase();
   const isRoofing = /ROOF|REROOF/.test(permitType);
 
-  // Build roofYear for roofing permits (use issue_date as proxy)
   let roofYear = null;
   if (isRoofing && record.issue_date) {
-    roofYear = record.issue_date; // use issue_date as roof_year proxy
+    roofYear = record.issue_date;
   }
 
   const isPremium = PREMIUM_CITIES.has(cityName.toUpperCase());
@@ -119,20 +124,20 @@ function mapToRawPermit(record) {
     permitNumber:   record.permit_ || record.id || `IL-CHI-${Date.now()}`,
     permitType:     record.permit_type || 'Building Permit',
     permitDate:     record.issue_date ? record.issue_date.slice(0, 10) : null,
-    status:        record.status || 'Issued',
-    address:       record.address || '',
-    city:          cityName,
-    state:         'IL',
-    county:        'Cook',
-    zip:           record.zip_code || '',
-    ownerName:     record.applicant_name || null,
-    contractorName: record.applicant_name || null, // Socrata has applicant_name, may be contractor
-    contractorLic: record.license_number || null,
-    valuation:     valuation,
-    roofYear:      roofYear,
-    source:        'Chicago Data Portal (Socrata)',
-    tier:          isPremium ? 'PREMIUM' : 'STANDARD',
-    tags:          isPremium ? ['PREMIUM'] : [],
+    status:         'Issued',
+    address:        address,
+    city:           cityName,
+    state:          'IL',
+    county:         'Cook',
+    zip:            '',
+    ownerName:      record.contact_1_name || null,
+    contractorName: null,
+    contractorLic:  null,
+    valuation:      valuation,
+    roofYear:       roofYear,
+    source:         'Chicago Data Portal (Socrata)',
+    tier:           isPremium ? 'PREMIUM' : 'STANDARD',
+    tags:           isPremium ? ['PREMIUM'] : [],
   };
 }
 

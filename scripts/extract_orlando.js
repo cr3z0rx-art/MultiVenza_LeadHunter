@@ -30,9 +30,9 @@ const Logger = require('../src/utils/logger');
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const SOCRATA_ENDPOINT = 'https://data.cityoforlando.net/resource/ryhf-m453.json';
+const SOCRATA_ENDPOINT = 'https://data.cityoforlando.net/resource/75b6-g9zg.json';
 const PREMIUM_CITIES = new Set(['WINTER PARK', 'WINDERMERE', 'DR PHILLIPS', 'BELLE ISLE', 'COLLEGE PARK']);
-const TARGET_WORKTYPES = ['ROOF', 'REROOF', 'BUILDING', 'MECH', 'ELEC', 'PLUM', 'REMODEL', 'ADDITION', 'CONSTRUCTION'];
+const TARGET_WORKTYPES = ['ROOF', 'REROOF', 'BUILD', 'MECH', 'ELEC', 'PLUM', 'REMODEL', 'ADDITION', 'CONST', 'SIGN', 'GAS'];
 
 function argVal(flag, defaultVal) {
   const arg = process.argv.find(a => a.startsWith(`--${flag}=`));
@@ -61,14 +61,12 @@ function httpsGet(url) {
 
 function mapToRawPermit(record) {
   const worktype = (record.worktype || record.application_type || '').toUpperCase();
-  const isPremium = PREMIUM_CITIES.has((record.property_owner_name || '').trim().toUpperCase()) ||
-                    false; // premium por ciudad se detecta en processor
+  const isPremium = PREMIUM_CITIES.has((record.property_owner_name || '').trim().toUpperCase());
 
-  // Extraer ciudad de la direccion (campo permit_address)
+  // Extraer ciudad de la direccion
   let city = 'Orlando';
   let zip = '';
   const addr = record.permit_address || '';
-  // Intentar extraer ciudad del formato "DIRECCION, CIUDAD FL ZIP"
   const cityMatch = addr.match(/,?\s*([A-Za-z\s]+)\s+FL\s+(\d{5})$/);
   if (cityMatch) {
     city = cityMatch[1].trim();
@@ -90,7 +88,7 @@ function mapToRawPermit(record) {
     permitNumber:   record.permit_number || `ORL-UNKNOWN-${Date.now()}`,
     permitType:     [record.application_type, record.worktype].filter(Boolean).join(' - '),
     permitDate:     record.issue_permit_date ? record.issue_permit_date.slice(0, 10) : null,
-    status:         record.application_status || 'Issued',
+    status:         'Issued',
     address:        record.permit_address || '',
     city:           city,
     state:          'FL',
@@ -121,11 +119,8 @@ async function main() {
   sinceDate.setDate(sinceDate.getDate() - DAYS);
   const dateStr = sinceDate.toISOString().slice(0, 10);
 
-  // Filtro: fecha + tipos de trabajo relevantes
-  const workFilters = TARGET_WORKTYPES.map(t => `upper(worktype) like '%25${t}%25'`).join(' OR ');
-  const where = `issue_permit_date >= '${dateStr}' AND (${workFilters}) AND estimated_cost > 0`;
-
-  const url = `${SOCRATA_ENDPOINT}?$where=${encodeURIComponent(where)}&$limit=${Math.min(MAX, 1000)}&$order=issue_permit_date DESC&$select=permit_number,application_type,worktype,permit_address,property_owner_name,estimated_cost,issue_permit_date,application_status,project_name`;
+  // Filtro simple: solo estimated_cost > 0 (trae todo el dataset, filtra despues)
+  const url = `${SOCRATA_ENDPOINT}?$limit=${Math.min(MAX, 1000)}&$order=issue_permit_date%20DESC`;
 
   console.log('  Fetching from Orlando Data Portal...');
 
