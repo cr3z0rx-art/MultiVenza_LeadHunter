@@ -28,7 +28,7 @@ const { syncILLeads } = require('./lib/saas_sync');
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const SOCRATA_ENDPOINT = 'https://data.cityofchicago.org/resource/ydr8-5w6m.json';
+const SOCRATA_ENDPOINT = 'https://data.cityofchicago.org/resource/ydr8-5enu.json';
 const PREMIUM_CITIES = new Set(['CHICAGO', 'EVANSTON', 'SKOKIE', 'CICERO']);
 
 // Permit types we care about (case-insensitive matching)
