@@ -9,7 +9,7 @@
  * Modos:
  *   node scripts/run_enricher.js               → simulación (sin OUTSCRAPER_API_KEY)
  *   node scripts/run_enricher.js --live         → API real (requiere key en .env)
- *   node scripts/run_enricher.js --all          → incluye leads residenciales también
+ *   node scripts/run_enricher.js --all          → incluye leads residenciales también (roofing, hvac, electrical, etc.)
  *   node scripts/run_enricher.js --top=20       → solo top 20 por score
  */
 
