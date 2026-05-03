@@ -3,9 +3,8 @@
 /**
  * scripts/run_diamond_leads.js
  *
- * Extracts and scores "Diamond" quality leads:
- *   - Hillsborough: real Accela permit data via public ArcGIS REST API
- *   - Sarasota:     realistic demo data (no public API available for Sarasota)
+ * Extrae y procesa leads de permisos de construccion REALES.
+ * Fuente unica: Hillsborough County (FL) via ArcGIS REST API publica.
  *
  * Diamond = any combination of:
  *   ★ PREMIUM city (Siesta Key / Longboat Key / Lakewood Ranch)
@@ -13,10 +12,12 @@
  *   ★ 15-year roof rule (insurance-forced replacement)
  *   ★ High valuation (>$50k)
  *
+ * NO se generan datos demo/fake. Solo leads reales verificables.
+ *
  * Usage:
  *   node scripts/run_diamond_leads.js
  *   node scripts/run_diamond_leads.js --days=14   (default: 30)
- *   node scripts/run_diamond_leads.js --max=100   (max records per county, default: 200)
+ *   node scripts/run_diamond_leads.js --max=100   (max records per county, default: 500)
  *   node scripts/run_diamond_leads.js --top=50    (leads to show in preview, default: 50)
  */
 
@@ -68,14 +69,9 @@ async function main() {
   // ── 1. Extract ─────────────────────────────────────────────────────────────
   const extractor = new ArcGISExtractor(config);
   const rawRecords = await extractor.run({
-    counties:         ['Hillsborough', 'Sarasota'],
-    // NOTE: Otros condados (Miami-Dade, Orange, Palm Beach, Fulton, Broward,
-    // Pinellas, Harris, Maricopa) estan pendientes de verificacion de endpoints.
-    // Sus URLs ArcGIS pueden haber cambiado o requerir autenticacion.
-    // Se reactivaran una vez confirmados los endpoints operativos.
-    daysBack:         DAYS,
-    maxRecords:       MAX,
-    sarasotaDemoMode: true,
+    counties:   ['Hillsborough'], // Unico condado con endpoint ArcGIS REAL verificado
+    daysBack:   DAYS,
+    maxRecords: MAX,
   });
 
   if (rawRecords.length === 0) {
