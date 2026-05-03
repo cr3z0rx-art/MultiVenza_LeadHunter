@@ -23,13 +23,7 @@ const CacheManager = require('./utils/cache_manager');
 const DIAMOND_CITIES = new Set(['SIESTA KEY', 'LONGBOAT KEY', 'LAKEWOOD RANCH']);
 
 // Categorías con alta probabilidad de tener Google Maps Business listing
-const COMMERCIAL_CATEGORIES = new Set(['cgc', 'commercial']);
-
-// Todas las categorías que pueden buscarse — comerciales y residenciales
-const SEARCHABLE_CATEGORIES = new Set([
-  'cgc', 'commercial', 'roofing', 'hvac', 'electrical',
-  'homeBuilders', 'remodeling', 'solar', 'plumbing',
-]);
+const COMMERCIAL_CATEGORIES = new Set(['cgc']);
 
 // Palabras clave en el tipo de permiso que sugieren uso comercial
 const COMMERCIAL_KEYWORDS = [
@@ -104,19 +98,7 @@ class Enricher {
           ...lead,
           outscraper: {
             status: 'SKIP_RESIDENTIAL',
-            note:   'Propiedad residencial — omitido porque onlyCommercial=true. Usa --all para incluir.',
-          },
-        };
-      }
-
-      // Saltar leads de categorías no reconocidas
-      if (!SEARCHABLE_CATEGORIES.has(lead.category)) {
-        stats.skipped++;
-        return {
-          ...lead,
-          outscraper: {
-            status: 'SKIP_UNKNOWN_CATEGORY',
-            note:   `Categoría '${lead.category}' no está en la lista de búsqueda.`,
+            note:   'Propiedad residencial — Google Maps no tiene listing de propietarios privados.',
           },
         };
       }
@@ -325,17 +307,9 @@ class Enricher {
   }
 
   _buildQuery(lead) {
-    const isCommercial = this._isCommercialLead(lead);
-    const addr = [lead.address, lead.city, lead.state || 'FL', lead.zip].filter(Boolean).join(', ');
-
-    if (isCommercial) {
-      // Para comerciales: buscar el negocio en Google Maps
-      return `${addr} business`;
-    }
-
-    // Para residenciales: buscar por direccion + propietario + pista de contratista
-    const ownerHint = lead.ownerName ? ` ${lead.ownerName}` : '';
-    return `roofing contractor OR general contractor near ${addr}${ownerHint}`;
+    const addr = [lead.address, lead.city, 'FL', lead.zip].filter(Boolean).join(', ');
+    const hint = this._isCommercialLead(lead) ? ' business' : '';
+    return `${addr}${hint}`;
   }
 
   _parseResult(raw, lead) {
@@ -381,36 +355,29 @@ class Enricher {
     const cityKey       = (lead.city || '').trim().toUpperCase();
     const isPremiumCity = DIAMOND_CITIES.has(cityKey);
 
-    const generatePhone = isCommercial || isPremiumCity || SEARCHABLE_CATEGORIES.has(lead.category);
+    const generatePhone = isCommercial || isPremiumCity;
     if (!generatePhone) return { _creditsUsed: 0, data: [[null]] };
 
-    const areaCode = ['TAMPA', 'ST PETERSBURG', 'BRANDON'].includes(cityKey) ? '813' : '941';
+    const areaCode = cityKey === 'TAMPA' ? '813' : '941';
     const mid      = String(Math.floor(200 + Math.random() * 800));
     const last     = String(Math.floor(1000 + Math.random() * 9000));
     const phone    = `(${areaCode}) ${mid}-${last}`;
 
     const nameMap = {
       cgc:          `${lead.city} General Contractors LLC`,
-      commercial:   `${lead.city} Commercial Builders`,
       roofing:      `${lead.city} Roofing & Restoration`,
-      hvac:         `${lead.city} HVAC Services`,
-      electrical:   `${lead.city} Electrical Solutions`,
       homeBuilders: `${lead.city} Custom Homes`,
-      remodeling:   `${lead.city} Remodeling Pros`,
-      solar:        `${lead.city} Solar Energy`,
-      plumbing:     `${lead.city} Plumbing Experts`,
     };
     const name = nameMap[lead.category] || `${lead.city} Property`;
-    const isPrivateResidence = !isCommercial && !isPremiumCity && lead.category !== 'cgc';
 
     return {
       _creditsUsed: 1,
       data: [[{
-        name:          isPrivateResidence && lead.ownerName ? lead.ownerName : name,
+        name,
         phone,
         address:  `${lead.address}, ${lead.city}, FL ${lead.zip || ''}`.trim(),
         site:     null,
-        rating:   isPrivateResidence ? null : (3.5 + Math.random() * 1.5).toFixed(1),
+        rating:   (3.5 + Math.random() * 1.5).toFixed(1),
         place_id: `mock_${lead.permitNumber}`,
       }]],
     };
