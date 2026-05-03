@@ -129,7 +129,7 @@
       "exclude": ["VOID", "WITHDRAWN", "CANCELLED"]
     },
     "requireNoGC": false,
-    "valuationMin": 5000,
+    "valuationMin": 10000,
     "excludedZips": [],
     "cityFilter": {
       "enabled": false,
@@ -137,9 +137,19 @@
     },
     "keywordFilter": {
       "enabled": true,
-      "allowed": ["ROOF", "HVAC", "ELECTRICAL", "CGC", "BLDG", "NEW", "CONSTRUCTION", "ADDITION", "REMODEL"]
+      "allowed": ["ROOF", "HVAC", "ELECTRICAL", "CGC", "BLDG", "NEW", "CONSTRUCTION", "ADDITION", "REMODEL", "INTERIOR", "FINISH", "IMPROVEMENT", "TENANT", "RENOVATION", "POOL"]
     }
   },
+
+  "hillsboroughPermitTypes": [
+    "Residential New Construction",
+    "Residential Building Alterations (Renovations)",
+    "Residential Miscellaneous",
+    "Commercial New Construction",
+    "Residential Remodel",
+    "Commercial Remodel",
+    "Residential Addition"
+  ],
 
   "scoring": {
     "baseScore": 10,

@@ -38,7 +38,7 @@ function argVal(flag, defaultVal) {
 }
 
 const DAYS    = argVal('days', 30);
-const MAX     = argVal('max',  200);
+const MAX     = argVal('max',  500);
 const TOP     = argVal('top',   50);
 
 const logger = new Logger(config.logging);
@@ -68,7 +68,11 @@ async function main() {
   // ── 1. Extract ─────────────────────────────────────────────────────────────
   const extractor = new ArcGISExtractor(config);
   const rawRecords = await extractor.run({
-    counties:         ['Hillsborough', 'Sarasota', 'Miami-Dade', 'Orange', 'Palm Beach', 'Fulton', 'Broward', 'Pinellas', 'Harris', 'Maricopa'],
+    counties:         ['Hillsborough', 'Sarasota'],
+    // NOTE: Otros condados (Miami-Dade, Orange, Palm Beach, Fulton, Broward,
+    // Pinellas, Harris, Maricopa) estan pendientes de verificacion de endpoints.
+    // Sus URLs ArcGIS pueden haber cambiado o requerir autenticacion.
+    // Se reactivaran una vez confirmados los endpoints operativos.
     daysBack:         DAYS,
     maxRecords:       MAX,
     sarasotaDemoMode: true,

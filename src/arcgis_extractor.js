@@ -36,6 +36,9 @@ const ARCGIS_SOURCES = {
       'Residential Building Alterations (Renovations)',
       'Residential Miscellaneous',
       'Commercial New Construction',
+      'Residential Remodel',
+      'Commercial Remodel',
+      'Residential Addition',
     ],
     valuationField: 'Value',
     typeField: 'TYPE',
@@ -108,11 +111,12 @@ const ARCGIS_SOURCES = {
 
 // ─── Demo data (Sarasota + premium cities) ────────────────────────────────────
 
-function _buildSarasotaDemoRecords(count = 25) {
+function _buildSarasotaDemoRecords(count = 50) {
   const today = new Date();
   const records = [];
 
   const sarasotaTemplates = [
+    // ── Original 25 templates ──
     { city: 'Siesta Key',     zip: '34242', type: 'Residential Roofing',     desc: 'RE-ROOF - Tile to Metal Roof Replacement',      val: 28000,  contractor: null },
     { city: 'Siesta Key',     zip: '34242', type: 'Residential Roofing',     desc: 'REROOF - Flat roof membrane replacement',         val: 35000,  contractor: null },
     { city: 'Longboat Key',   zip: '34228', type: 'Residential New Construction', desc: 'New Single Family Residence - Custom Home',   val: 1850000, contractor: 'COASTAL BUILDERS LLC' },
@@ -138,29 +142,55 @@ function _buildSarasotaDemoRecords(count = 25) {
     { city: 'Lakewood Ranch', zip: '34211', type: 'Residential New Construction', desc: 'New Custom Luxury Home Single Family Res',  val: 850000, contractor: null },
     { city: 'Bradenton',      zip: '34208', type: 'Residential Roofing',     desc: 'RE-ROOF shingle to metal upgrade',              val: 23000,  contractor: null },
     { city: 'Longboat Key',   zip: '34228', type: 'Residential Roofing',     desc: 'ROOF REPLACEMENT - full reroof high value',     val: 68000,  contractor: null },
+    // ── 25 additional templates ──
+    { city: 'Siesta Key',     zip: '34242', type: 'Residential Remodel',     desc: 'Residential Remodel - Kitchen and Bath',          val: 85000,  contractor: null },
+    { city: 'Siesta Key',     zip: '34242', type: 'Residential Addition',    desc: 'Residential Addition - Master Suite Expansion',   val: 120000, contractor: null },
+    { city: 'Longboat Key',   zip: '34228', type: 'Residential Remodel',    desc: 'Residential Remodel - Full Interior Renovation',  val: 450000, contractor: 'PREMIER CONSTRUCTION' },
+    { city: 'Longboat Key',   zip: '34228', type: 'Residential Addition',    desc: 'Residential Addition - Pool and Enclosure',       val: 95000,  contractor: null },
+    { city: 'Lakewood Ranch', zip: '34202', type: 'Residential HVAC',       desc: 'HVAC Replacement - Complete System Upgrade',      val: 18500,  contractor: 'LAKEWOOD HVAC SERVICES' },
+    { city: 'Lakewood Ranch', zip: '34202', type: 'Residential Electrical', desc: 'Electrical Panel Upgrade 400A Service',           val: 8500,   contractor: null },
+    { city: 'Venice',         zip: '34285', type: 'Residential Remodel',     desc: 'Bathroom Remodel - Complete Gut Renovation',      val: 35000,  contractor: null },
+    { city: 'Venice',         zip: '34293', type: 'Residential Addition',    desc: 'Residential Addition - Garage Conversion ADU',    val: 65000,  contractor: null },
+    { city: 'North Port',     zip: '34287', type: 'Residential HVAC',       desc: 'New HVAC System Installation',                   val: 12000,  contractor: 'NORTH PORT COOLING' },
+    { city: 'North Port',     zip: '34289', type: 'Residential Electrical', desc: 'Rewire Existing Home - Full Electrical',          val: 15000,  contractor: null },
+    { city: 'Nokomis',        zip: '34275', type: 'Residential Remodel',     desc: 'Kitchen Remodel - Complete Renovation',           val: 48000,  contractor: null },
+    { city: 'Nokomis',        zip: '34275', type: 'Residential Addition',    desc: 'Addition - Sunroom Enclosure',                   val: 32000,  contractor: 'SUNROOM BUILDERS LLC' },
+    { city: 'Bradenton',      zip: '34209', type: 'Residential Roofing',     desc: 'ROOF REPLACEMENT - Tile roof age 22 years',       val: 27500,  contractor: null },
+    { city: 'Bradenton',      zip: '34212', type: 'Residential HVAC',       desc: 'Ductwork Replacement and HVAC Upgrade',          val: 14000,  contractor: null },
+    { city: 'Palmetto',       zip: '34221', type: 'Residential New Construction', desc: 'New Single Family Home Construction',       val: 320000, contractor: null },
+    { city: 'Palmetto',       zip: '34221', type: 'Residential Roofing',     desc: 'RE-ROOF complete - 14 yr old roof age',         val: 19500,  contractor: 'PALMETTO ROOFING CO' },
+    { city: 'Laurel',         zip: '34272', type: 'Residential Addition',    desc: 'Addition - Second Floor Addition',               val: 180000, contractor: null },
+    { city: 'Laurel',         zip: '34272', type: 'Residential Remodel',     desc: 'Residential Remodel - Whole House',              val: 75000,  contractor: null },
+    { city: 'Siesta Key',     zip: '34242', type: 'Residential Pool',       desc: 'Swimming Pool and Spa Construction',             val: 65000,  contractor: null },
+    { city: 'Longboat Key',   zip: '34228', type: 'Residential Pool',       desc: 'Lap Pool and Outdoor Kitchen Construction',      val: 95000,  contractor: 'LUXURY POOLS INC' },
+    { city: 'Lakewood Ranch', zip: '34202', type: 'Residential Addition',    desc: 'Residential Addition - 3 Car Garage Expansion',   val: 42000,  contractor: null },
+    { city: 'Osprey',         zip: '34229', type: 'Residential Roofing',     desc: 'ROOF REPLACEMENT - 16 yr old roof replacement', val: 22000,  contractor: null },
+    { city: 'Osprey',         zip: '34229', type: 'Residential New Construction', desc: 'New Construction Single Family Residence', val: 450000, contractor: 'GULF BUILDERS INC' },
+    { city: 'Sarasota',       zip: '34236', type: 'Commercial Remodel',     desc: 'Commercial Remodel - Office Build Out',          val: 125000, contractor: null },
+    { city: 'Sarasota',       zip: '34237', type: 'Residential Roofing',     desc: 'REROOF - Flat commercial roof membrane',        val: 34000,  contractor: 'SARASOTA ROOFING LLC' },
   ];
 
   const premiumCities = new Set(['SIESTA KEY', 'LONGBOAT KEY', 'LAKEWOOD RANCH']);
 
   for (let i = 0; i < Math.min(count, sarasotaTemplates.length); i++) {
     const t = sarasotaTemplates[i];
-    const daysAgo = Math.floor(Math.random() * 28) + 1; // 1–28 days ago
+    const daysAgo = Math.floor(Math.random() * 55) + 1; // 1–55 days ago (up from 28)
     const permitDate = new Date(today);
     permitDate.setDate(permitDate.getDate() - daysAgo);
 
     const isRoofing = t.desc.toUpperCase().includes('ROOF');
-    // Simulate roofYear for roofing permits: 13–20 years ago
-    const roofAge   = isRoofing ? (Math.floor(Math.random() * 8) + 13) : null;
+    // Simulate roofYear for roofing permits: 13–22 years ago (up from 13-20)
+    const roofAge   = isRoofing ? (Math.floor(Math.random() * 10) + 13) : null;
     const roofYear  = roofAge ? new Date(today.getFullYear() - roofAge, 5, 1).toISOString().slice(0, 10) : null;
 
     const isPremium = premiumCities.has(t.city.toUpperCase());
 
     records.push({
-      permitNumber:   `SC-BLD-26-${String(1000000 + i).slice(1)}`,
+      permitNumber:   `SC-BLD-26-${String(2000000 + i).slice(1)}`,
       permitType:     t.desc,   // full description for keyword matching
       permitDate:     permitDate.toISOString().slice(0, 10),
       status:         'Issued',
-      address:        `${1000 + i * 17} ${['Gulf Dr', 'Bay Blvd', 'Palm Ave', 'Beach Rd', 'Shoreline Dr'][i % 5]}`,
+      address:        `${1000 + i * 17} ${['Gulf Dr', 'Bay Blvd', 'Palm Ave', 'Beach Rd', 'Shoreline Dr', 'Ocean Blvd', 'Harbor Ct', 'Island Dr', 'Sunset Ln', 'Marina Dr'][i % 10]}`,
       city:           t.city,
       state:          'FL',
       county:         'Sarasota',
@@ -294,6 +324,31 @@ function _parseDate(epochMs) {
   return new Date(epochMs).toISOString().slice(0, 10);
 }
 
+/**
+ * Extract contractor name from DESCRIPTION field using known patterns.
+ * Returns null if OWNER BUILDER or HOMEOWNER patterns detected (No-GC).
+ */
+function _extractContractorFromDesc(description) {
+  if (!description) return null;
+  const upperDesc = description.toUpperCase();
+  // If OWNER BUILDER or HOMEOWNER → No-GC confirmed
+  if (/OWNER\s+BUILDER|HOMEOWNER/i.test(description)) return null;
+  // Look for GC:, Contractor:, CONTRACTOR patterns
+  const match = description.match(/(?:GC|CONTRACTOR|CONTRACT)\s*[:.]?\s*([A-Z][A-Z\s.]+?(?=,|\.|$|\s+-\s+))/i);
+  if (match) return match[1].trim();
+  return null;
+}
+
+/**
+ * Extract owner name from DESCRIPTION field using known patterns.
+ */
+function _extractOwnerFromDesc(description) {
+  if (!description) return null;
+  const match = description.match(/(?:Owner|Applicant)\s*[:.]?\s*([A-Z][A-Z\s.]+?(?=,|\.|$))/i);
+  if (match) return match[1].trim();
+  return null;
+}
+
 function _mapFeature(feature, source) {
   const a = feature.attributes;
 
@@ -360,8 +415,8 @@ function _mapFeature(feature, source) {
     state:          source.state || 'FL',
     county:         source.county || 'Unknown',
     zip,
-    ownerName:      null,        // not in ArcGIS layer
-    contractorName: null,        // not in ArcGIS layer → processor flags as No-GC
+    ownerName:      _extractOwnerFromDesc(a.DESCRIPTION),
+    contractorName: _extractContractorFromDesc(a.DESCRIPTION),
     contractorLic:  null,
     valuation:      typeof a.Value === 'number' ? a.Value : 0,
     roofYear:       null,        // derive from permitDate in roof rules
@@ -386,7 +441,7 @@ class ArcGISExtractor {
    * @param {object} opts
    * @param {string[]} opts.counties           — e.g. ['Hillsborough', 'Sarasota']
    * @param {number}   opts.daysBack           — how many days back to query (default 30)
-   * @param {number}   opts.maxRecords         — max records per county (default 200)
+   * @param {number}   opts.maxRecords         — max records per county (default 1000)
    * @param {boolean}  opts.sarasotaDemoMode   — use demo data for Sarasota (default true,
    *                                             since no public API exists for Sarasota)
    * @returns {Promise<object[]>} rawRecords
@@ -394,8 +449,8 @@ class ArcGISExtractor {
   async run(opts = {}) {
     const {
       counties         = ['Hillsborough', 'Sarasota'],
-      daysBack         = 3,
-      maxRecords       = 200,
+      daysBack         = 30,
+      maxRecords       = 1000,
       sarasotaDemoMode = true,
     } = opts;
 
@@ -409,7 +464,7 @@ class ArcGISExtractor {
       if (county === 'Sarasota') {
         if (sarasotaDemoMode) {
           this.logger.info('Sarasota: no public ArcGIS API available — using realistic demo data');
-          const demo = _buildSarasotaDemoRecords(Math.min(maxRecords, 25));
+          const demo = _buildSarasotaDemoRecords(Math.min(maxRecords, 50));
           allRecords.push(...demo);
           this.logger.info(`Sarasota demo: ${demo.length} records`);
         } else {

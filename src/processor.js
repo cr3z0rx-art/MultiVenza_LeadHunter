@@ -153,11 +153,6 @@ class Processor {
       return null;
     }
 
-    // Hard Filter No-GC (HotRadar priority)
-    if (!rules.isNoGC(record.contractorName)) {
-      return null;
-    }
-
     // 1. Status filter
     if (!this._passesStatusFilter(record.status)) {
       return null;
@@ -179,6 +174,8 @@ class Processor {
     const noGC = rules.isNoGC(record.contractorName);
 
     // 4b. Hard No-GC filter when requireNoGC is enabled
+    // If requireNoGC=true: drop non-NoGC leads (send to competitors if named contractor)
+    // If requireNoGC=false: just flag noGC silently, continue processing
     if (this.filters.requireNoGC && !noGC) {
       if (record.contractorName && record.contractorName.trim().length > 2) {
         return {
@@ -372,6 +369,17 @@ class Processor {
   _passesStatusFilter(status) {
     if (!status) return true;
     const upper = status.toUpperCase();
+
+    // If include list is defined and non-empty, the status MUST match one of them
+    const include = this.filters.permitStatus.include;
+    if (include && Array.isArray(include) && include.length > 0) {
+      const includeUpper = include.map(s => s.toUpperCase());
+      if (!includeUpper.includes(upper)) {
+        return false;
+      }
+    }
+
+    // Then apply exclude as before
     const excluded = this.filters.permitStatus.exclude.map(s => s.toUpperCase());
     return !excluded.includes(upper);
   }
